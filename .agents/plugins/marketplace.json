@@ -1,0 +1,20 @@
+{
+  "name": "shadobaai-md-design",
+  "interface": {
+    "displayName": "Накидка"
+  },
+  "plugins": [
+    {
+      "name": "md-design",
+      "source": {
+        "source": "local",
+        "path": "./plugins/md-design"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Coding"
+    }
+  ]
+}
