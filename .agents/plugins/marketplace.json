@@ -1,7 +1,7 @@
 {
-  "name": "shadobaai-md-design",
+  "name": "shadobaai",
   "interface": {
-    "displayName": "Накидка"
+    "displayName": "ShadobaAI"
   },
   "plugins": [
     {
