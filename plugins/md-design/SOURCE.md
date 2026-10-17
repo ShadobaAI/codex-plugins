@@ -1,8 +1,8 @@
 # Source code
 
-Nakidka 1.0.0
+Nakidka 1.0.1
 
-https://github.com/ShadobaAI/md_design/tree/1c7be6c4d930822504c18c545691357a30c94182
+https://github.com/ShadobaAI/md_design/tree/b8763d45b559a6d7b8014e49bbc983fa18a952a0
 
 ## Original contributions
 
