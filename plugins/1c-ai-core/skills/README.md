@@ -2,6 +2,10 @@
 
 Active skills expose one workflow for every project type. Profile fields choose
 the repositories, aliases, EDT projects and optional test capabilities.
+The shared capability rules in [routing](1c-routing/SKILL.md) apply to all modes:
+use effective enabled/managed/external settings and the current live contract of
+only the required authorities. A profile mapping alone does not enable a route;
+missing capabilities stop their dependent actions without implicit substitution.
 
 Only the universal `generic-1c` profile is bundled. The user's 2026-10-20
 `project-profiles-outside-plugin` decision removes CRM/Kafka profiles and local
@@ -30,6 +34,37 @@ Neither server's absence is a migration defect or a reason to restore it.
 Review EDT documentation coverage and the planned BSP knowledge/OpenViking
 replacement separately; excluding legacy servers does not establish replacement
 readiness or complete the remaining reconciliation.
+
+## Local reconciliation of accepted decisions
+
+Reconciliation of shared behavior is limited to accepted `migration_decisions`.
+It confirms current source and isolated client checks, not complete historical
+parity with source environments, actual JAR/EDT/v8std or deployment.
+Thus `migration_acceptance` retains a separate open detailed-parity scope,
+while `accepted_decisions_local_acceptance` refers only to the following table.
+
+| Accepted decision | Current mechanism and local checks |
+| --- | --- |
+| project-profiles-outside-plugin | Only generic profile; `profile.mjs`, package allowlist; tests/test-profiles.mjs |
+| bsl-native-multi-workspace | Native workspace API, session JVM/registrations, optional config; tests/test-bsl-ls-proxy.mjs |
+| platform-documentation-edt-only | Assigned EDT and platform-docs; Help excluded from registry/schemas/routes |
+| bsp-documentation-without-ssl-mcp | SSL-MCP excluded; selected knowledge and index/live roles, tests/test-knowledge.mjs |
+| project-defined-supplier-maintenance | Shared ownership workflow and project instructions without fixed prefixes; tests/test-profiles.mjs |
+| edt-model-gate-recovery | Exact pre-write refusal, bounded recovery and separate cleanup scope; edt-recovery.md instruction review without claiming fixture/live verification of recovery itself |
+| selected-directory-and-instance-profile | Independent root/instance/session and overrides; tests/test-profile-settings.mjs, tests/test-setup.mjs |
+| edt-capability-driven-efficiency | Live schemas, toolsets and core_runtime bridge without pinned catalogue; tests/test-remote.mjs |
+| v8std-capability-driven-efficiency | Shared read-only server, bounded retrieval, separate contexts/ledgers; tests/test-setup.mjs, tests/test-policy.mjs |
+
+Exact rules belong to linked skills and runtime; the table does not duplicate them.
+Routing owns knowledge/source gates; code-index owns reuse; code-change owns risk,
+sufficiency and writer lifecycle; standards owns normative phases; action policy
+owns effects/authorization. Other scenarios apply these rules as needed rather
+than requiring every linked skill/reference to be loaded again.
+`tests/` paths are relative to the dev-checkout root; these dev checks are not
+in the ZIP. Project mappings, endpoints, credentials, marker formats and local
+exports do not migrate from source environments into the core. Finished package
+contents and live acceptance are checked separately; excluded servers' absence
+is not a gap.
 
 Shared mutation safety is maintained in [1c-code-change](1c-code-change/SKILL.md)
 and its [EDT editing contracts](1c-code-change/references/edt-editing.md):

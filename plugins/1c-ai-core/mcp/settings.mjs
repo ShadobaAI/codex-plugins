@@ -9,7 +9,7 @@ import { core_version } from "../scripts/compatibility.mjs";
 import { SettingsOperations } from "./settings-operations.mjs";
 import { plugin_icons, component_icons } from "../scripts/icons.mjs";
 import { folder_action } from "../scripts/settings_folder.mjs";
-import { create_diagnostic_logger, register_diagnostic_secrets, diagnostic_journal, sanitize_diagnostics } from "../scripts/diagnostics.mjs";
+import { create_diagnostic_logger, register_diagnostic_secrets, diagnostic_journal, sanitize_diagnostics, safe_error_message } from "../scripts/diagnostics.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const state = process.env.EDT_AI_STATE_DIR || path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "1c-ai-core");
@@ -61,10 +61,18 @@ const primitive = {
   codeIndexAllowPrerelease: { type: "boolean", title: "Предварительные релизы индекса кода", description: "При version=latest разрешить предварительные релизы. По умолчанию false. Общая настройка пользователя." },
   bslLsVersion: { type: "string", title: "Версия BSL LS", pattern: "^(latest|[A-Za-z0-9][A-Za-z0-9._+-]{0,127})$", description: "latest или точный тег, включая предварительный релиз. Общая настройка пользователя." },
   bslLsAllowPrerelease: { type: "boolean", title: "Предварительные релизы BSL LS", description: "При version=latest разрешить предварительные релизы. По умолчанию false. Общая настройка пользователя." },
-  openvikingEnabled: { type: "boolean", title: "Флаг OpenViking", description: "Резерв конфигурации. Подключение OpenViking этим плагином ещё не реализовано.", readOnly: true },
-  openvikingUrl: { type: "string", title: "URL OpenViking", description: "Сохранённое значение; соединение и поиск не выполняются.", readOnly: true },
+  openvikingEnabled: { type: "boolean", title: "Транспорт OpenViking", description: "Включает подключение для текущего каталога и экземпляра. При выключении сохранённый URL остаётся; режим и обязательность знаний не изменяются." },
+  openvikingUrl: { type: "string", title: "URL OpenViking", description: "Override текущего каталога и экземпляра. Пустое значение отключает транспорт; окружение имеет высший приоритет." },
+  openvikingTimeout: { type: "number", title: "Таймаут OpenViking, с", exclusiveMinimum: 0, maximum: 300 },
+  openvikingMaxResponseBytes: { type: "integer", title: "Лимит ответа OpenViking, байт", minimum: 1024, maximum: 16777216 },
+  openvikingHeadersEnv: { type: "object", title: "Заголовки → переменные окружения", additionalProperties: { type: "string" }, description: "Только имена переменных, без значений credentials." },
 };
 const versionCatalogs = new Map();
+const openvikingTransport = { type: "object", additionalProperties: false, properties: {
+  enabled: primitive.openvikingEnabled, url: primitive.openvikingUrl,
+  timeout_seconds: primitive.openvikingTimeout, max_response_bytes: primitive.openvikingMaxResponseBytes,
+  headers_env: primitive.openvikingHeadersEnv,
+} };
 
 function values(c) {
   return {
@@ -75,6 +83,9 @@ function values(c) {
     bslLsVersion: c.mcp.managed["bsl-ls"].version, bslLsAllowPrerelease: Boolean(c.mcp.managed["bsl-ls"].allow_prerelease),
     openvikingEnabled: Boolean(c.mcp.optional?.openviking?.enabled),
     openvikingUrl: c.mcp.optional?.openviking?.url || "",
+    openvikingTimeout: c.mcp.optional?.openviking?.timeout_seconds,
+    openvikingMaxResponseBytes: c.mcp.optional?.openviking?.max_response_bytes,
+    openvikingHeadersEnv: c.mcp.optional?.openviking?.headers_env || {},
   };
 }
 async function readValues(remember = false) {
@@ -98,15 +109,22 @@ async function readValues(remember = false) {
   return { values: { ...values(defaults), projectRoot: "" }, profile: { status: "unselected", path: null }, instance: process.env.EDT_AI_INSTANCE || "default", preparationScope: null };
 }
 function readSettings(actual) {
+  const properties = structuredClone(primitive);
+  for (const [field, source] of Object.entries(actual.valueSources || {}))
+    if (properties[field] && (source.startsWith("environment:") || source === "connections_file"))
+      properties[field].readOnly = true;
   return {
-    schema: { type: "object", properties: structuredClone(primitive) },
+    schema: { type: "object", properties },
     values: actual.values, instance: actual.instance, connectionSources: actual.connectionSources,
+    valueSources: actual.valueSources,
     installedVersions: actual.installedVersions,
     preparationScope: actual.preparationScope,
     profile: actual.profile, directoryContext: actual.directoryContext, sessionGuidance: actual.sessionGuidance,
     profileDirectoryContext: actual.profileDirectoryContext,
     edtPortSuggestion: actual.edtPortSuggestion,
     readiness: actual.readiness,
+    knowledge: actual.knowledge,
+    environmentCompatibility: actual.environmentCompatibility,
     legacyState: actual.legacyState,
     profileHistory: actual.profileHistory || [], summary: actual.summary,
     configurationError: actual.configurationError,
@@ -136,17 +154,17 @@ const tools = [
   { name: "settings.refresh_readiness", title: "Обновить готовность профиля", description: "Refresh live service checks when the settings app loads a profile. Reuses only this project's and instance's existing preparation permission and installed runtimes. Does not grant permission, download components or rebind chat connections. Poll settings.operation with the returned id.",
     inputSchema: { type: "object", properties: { scope: { type: "string", minLength: 1 } }, required: ["scope"], additionalProperties: false }, annotations: { ...annotations(false), openWorldHint: true }, _meta: appOnly },
   { name: "settings.reset_connection", title: "Вернуть наследование подключения", description: "Remove this instance's URL override and inherit the next configured source.",
-    inputSchema: { type: "object", required: ["connection"], properties: { connection: { type: "string", enum: ["edt", "v8std"] } }, additionalProperties: false }, annotations: annotations(false), _meta: appOnly },
+    inputSchema: { type: "object", required: ["connection"], properties: { connection: { type: "string", enum: ["edt", "v8std", "openviking"] } }, additionalProperties: false }, annotations: annotations(false), _meta: appOnly },
   { name: "settings.open", title: "Настройки", description: "Open the full settings workspace with the user's profile list from Open plugin or app navigation. The form automatically refreshes readiness using installed runtimes and existing project-scoped preparation permissions.",
     inputSchema: empty, annotations: annotations(), _meta: { ui: { resourceUri: resource, visibility: ["app"] }, "openai/ui": { entrypoints: [{ type: "global" }] } } },
   { name: "settings.inspect", title: "Проверить настройку проекта", description: "Start chat setup here: compact profile validation, effective connections, detected EDT projects/port, managed preparation and next steps in one read-only call. Supply this chat's known projectRoot when host roots are empty. Do not read plugin source or reload an already loaded profile to diagnose setup.",
     inputSchema: inspectInput, annotations: annotations(), _meta: shared },
-  { name: "settings.probe_connections", title: "Проверить EDT и v8std", description: "One read-only external connection test, including exact EDT repository paths/readiness when list_projects is exposed. Does not download or launch services. Returns an operation ID: poll settings.operation with waitMs=10000; never repeat to wait. This acceptance is separate from current chat relay binding.",
-    inputSchema: { type: "object", properties: { connections: { type: "object", properties: { edt: { type: "string" }, v8std: { type: "string" } }, additionalProperties: false, description: "Optional unsaved URLs to test without persisting them. An empty string tests a disabled connection." } }, additionalProperties: false }, annotations: { ...annotations(), openWorldHint: true }, _meta: shared },
-  { name: "settings.profile", title: "Настройки проекта", description: "Open the settings form for this chat's selected profile only on an explicit user request to view, create or change profile/settings. Code analysis and runtime troubleshooting do not authorize opening a form; use settings.inspect instead. Always supply this chat's known projectRoot so the form retains its directory across MCP connections; {} uses host roots when available. Does not reload profiles or borrow another chat's directory.",
+  { name: "settings.probe_connections", title: "Проверить внешние подключения", description: "One read-only test of EDT/v8std and enabled OpenViking, including exact EDT repository paths/readiness and selected knowledge search. Does not download or launch services. Returns an operation ID: poll settings.operation with waitMs=10000; never repeat to wait. This acceptance is separate from current chat relay binding.",
+    inputSchema: { type: "object", properties: { connections: { type: "object", properties: { edt: { type: "string" }, v8std: { type: "string" }, openviking: openvikingTransport }, additionalProperties: false, description: "Optional unsaved transport fields to test without persisting them. Empty URLs disconnect transport without changing knowledge requirements." } }, additionalProperties: false }, annotations: { ...annotations(), openWorldHint: true }, _meta: shared },
+  { name: "settings.profile", title: "Настройки проекта", description: "Open the settings form for this chat's selected profile only on an explicit user request to open/show this form. Chat configuration, code analysis and runtime troubleshooting do not authorize opening a form; use settings.inspect instead. Always supply this chat's known projectRoot so the form retains its directory across MCP connections; {} uses host roots when available. Does not reload profiles or borrow another chat's directory.",
     inputSchema: inspectInput, annotations: annotations(), _meta: { ...appTool, "openai/ui": { entrypoints: [{ type: "thread" }] } } },
   ...[["settings.create", "Создать профиль", "Create the generic .ai/project.yaml and missing project instructions in this chat's selected repository, only when the user requests creation. Never overwrites a profile or existing instructions. Returns projectInstructions.created/preserved; optional overrideFile reports a non-empty AGENTS.override.md that takes precedence over the adjacent AGENTS.md. contentValidated=false means project rules still need review. Follow the setup skill's project-instructions reference to complete them from confirmed facts. Repository mappings still need configuration."],
-      ["settings.load", "Загрузить профиль", "Validate and reload the existing .ai/project.yaml for this chat's selected repository. Does not import a file or launch services. Report sessionGuidance; if the host does not refresh tools, ask the user to open a new chat in the same directory or restart Codex."]].map(([name, title, description]) => ({
+      ["settings.load", "Загрузить профиль", "Validate and reload the existing .ai/project.yaml for this chat's selected repository. Does not import a file or launch services. Report sessionGuidance. If the host keeps its initial tool catalogue, use the assigned relay's core_runtime_tools/core_runtime_call with this chat's projectRoot."]].map(([name, title, description]) => ({
     name, title, description, inputSchema: { type: "object", properties: { projectRoot: { type: "string", minLength: 1, description: "Only for an unbound settings screen. A chat's selected root cannot be changed." } }, additionalProperties: false },
     annotations: annotations(false), _meta: shared,
   })),
@@ -165,7 +183,7 @@ const tools = [
     outputSchema: { type: "object", required: ["values"], properties: { values: { type: "object" } } },
     annotations: annotations(false), _meta: shared },
   ...[["settings.import", "Открыть импорт"], ["settings.export", "Открыть экспорт"]].map(([name, title]) => ({
-    name, title, description: `${title}. Open the form only on an explicit user request to import/export profile settings. This does not import or export by itself.`,
+    name, title, description: `${title}. Open the form only on an explicit user request for the import/export form. Chat configuration uses preview/apply or export_data without opening UI. This does not import or export by itself.`,
     inputSchema: inspectInput, annotations: annotations(), _meta: appTool,
   })),
   { name: "settings.preview", title: "Проверить файл", description: "Preview settings import without writing.",
@@ -203,6 +221,7 @@ const tools = [
 ];
 
 function backend(action, args, context = { projectRoot: selectedRoot, selectedDirectory: selectedRoot, rootLocked, instance: process.env.EDT_AI_INSTANCE || "default" }, readDeadline = 0) {
+  register_diagnostic_secrets(args);
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath,
       [path.join(root, "scripts", "settings_backend.mjs")], {
@@ -217,7 +236,7 @@ function backend(action, args, context = { projectRoot: selectedRoot, selectedDi
     }, readDeadline) : null;
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", chunk => { output += chunk; });
-    child.stderr.on("data", chunk => { errors = (errors + chunk).slice(-4000); process.stderr.write(chunk); });
+    child.stderr.on("data", () => { errors = "Backend stderr omitted."; });
     child.once("error", error => { clearTimeout(timer); reject(error); });
     child.stdin.on("error", () => {}); // close/output below owns the operation outcome
     child.once("close", code => {
@@ -235,7 +254,7 @@ function backend(action, args, context = { projectRoot: selectedRoot, selectedDi
         const error = new Error("Сервис настроек вернул некорректный ответ. Исход операции неизвестен; проверьте сохранённые настройки и состояние сервисов перед повтором.");
         error.outcomeUnknown = true; reject(error); return;
       }
-      if (data.ok !== true) { const error = new Error(data.error || "Сервис настроек сообщил об ошибке."); error.code = data.errorCode; error.outcomeUnknown = data.outcomeUnknown === true; reject(error); return; }
+      if (data.ok !== true) { const error = new Error(safe_error_message({ message: data.error || "Сервис настроек сообщил об ошибке.", code: data.errorCode })); error.code = data.errorCode; error.outcomeUnknown = data.outcomeUnknown === true; reject(error); return; }
       if (code !== 0) {
         const error = new Error("Сервис настроек вернул результат, но завершился с ошибкой. Проверьте сохранённые настройки и состояние сервисов перед повтором.");
         error.outcomeUnknown = true; reject(error); return;
@@ -396,8 +415,8 @@ async function call(name, args, meta = {}) {
     const view = readSettings(await readValues());
     for (const [name, source] of Object.entries(view.connectionSources || {})) {
       if (source.startsWith("environment:") || source === "connections_file") {
-        view.schema.properties[name === "edt" ? "edtUrl" : "v8stdUrl"] = {
-          ...primitive[name === "edt" ? "edtUrl" : "v8stdUrl"], readOnly: true,
+        view.schema.properties[name + "Url"] = {
+          ...primitive[name + "Url"], readOnly: true,
           description: "Значение задаёт " + source + ". Сначала измените этот источник с более высоким приоритетом.",
         };
       }
@@ -534,7 +553,7 @@ async function dispatch(message) {
     let data;
     if (message.method === "initialize") {
       data = { protocolVersion: protocols.includes(message.params?.protocolVersion) ? message.params.protocolVersion : protocols[0],
-        instructions: "Start chat setup with settings.inspect once; include this chat's known local projectRoot when the host supplied no directory. Reuse its validation, connection sources and nextSteps. Open settings forms only on an explicit user request about viewing, creating, editing, importing or exporting profile/settings. Code analysis or runtime diagnostics does not authorize opening a form. Inspection, checks and operation polling return data without UI. Do not reload an already loaded profile, inspect plugin source, spawn substitute relays or restart chats for empty roots. Create only a missing profile on user request. Preparation needs scoped user authorization. Never select another chat's root.",
+        instructions: "Start chat setup with settings.inspect once; include this chat's known local projectRoot when the host supplied no directory. Reuse its validation, connection sources, valueSources and nextSteps. Open settings forms only on an explicit user request to open/show the form or from plugin app navigation. Chat configuration, code analysis and runtime diagnostics do not authorize opening a form. Inspection, checks and operation polling return data without UI. Do not reload an already loaded profile, inspect plugin source, spawn substitute relays or restart chats for empty roots. Create only a missing profile on user request. Preparation needs scoped user authorization. Never select another chat's root.",
         serverInfo: { name: "1c-ai-settings", title: "1c-ai-settings", version: core_version, icons: plugin_icons() },
         capabilities: { tools: {}, resources: {} } };
     } else if (message.method === "server/discover") {
@@ -545,7 +564,7 @@ async function dispatch(message) {
     else if (message.method === "tools/list") data = { tools };
     else if (message.method === "tools/call") {
       try { data = await call(message.params.name, message.params.arguments || {}, message.params._meta); }
-      catch (error) { diagnostic.event("request_failed", { tool: message.params?.name, projectRoot: selectedRoot, error }, "error"); data = { isError: true, content: [{ type: "text", text: error.message }] }; }
+      catch (error) { diagnostic.event("request_failed", { tool: message.params?.name, projectRoot: selectedRoot, error }, "error"); data = { isError: true, content: [{ type: "text", text: safe_error_message(error) }] }; }
     } else if (message.method === "resources/list") {
       data = { resources: [{ uri: resource, name: "Настройки 1C AI Core", mimeType: "text/html;profile=mcp-app" }] };
     } else if (message.method === "resources/read" && message.params?.uri === resource) {
@@ -559,7 +578,7 @@ async function dispatch(message) {
     }
     write({ id: message.id, result: data });
     if (message.method === "initialize" && !process.env.EDT_AI_PROJECT_ROOT && message.params?.capabilities?.roots) requestRoots();
-  } catch (error) { write({ id: message.id, error: { code: -32000, message: error.message } }); }
+  } catch (error) { write({ id: message.id, error: { code: -32000, message: safe_error_message(error) } }); }
 }
 readline.createInterface({ input: process.stdin, crlfDelay: Infinity }).on("line", line => {
   try { const msg = JSON.parse(line); void dispatch(msg); }

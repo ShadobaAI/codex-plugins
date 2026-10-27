@@ -8,6 +8,7 @@ import {
   inside,
   load,
   validate_url,
+  validate_openviking_url,
   state_path,
 } from "./common.mjs";
 import {
@@ -65,11 +66,24 @@ export function resolved_settings(
   state = null,
 ) {
   let overrides = { connections: data?.connections || {} };
+  const fieldSources = { openviking: Object.fromEntries(Object.keys(config.mcp.optional.openviking).map(key => [key, "settings"])) };
+  const record_sources = (connections, source) => {
+    for (const key of Object.keys(connections?.openviking || {})) fieldSources.openviking[key] = source;
+  };
+  record_sources(data?.connections, "profile");
+  // A credential map is one identity configuration. An explicit empty map
+  // clears inherited headers rather than retaining credentials from old layers.
+  const merge_overrides = extra => {
+    overrides = deep_merge(overrides, extra);
+    if (Object.hasOwn(extra.connections?.openviking || {}, "headers_env"))
+      overrides.connections.openviking.headers_env = structuredClone(extra.connections.openviking.headers_env);
+  };
   const sources = Object.fromEntries(
-    Object.keys(overrides.connections).map((name) => [name, "profile"]),
+    Object.entries(overrides.connections).filter(([, entry]) => Object.hasOwn(entry, "url")).map(([name]) => [name, "profile"]),
   );
   const local = local_overrides(root);
-  overrides = deep_merge(overrides, local);
+  merge_overrides(local);
+  record_sources(local.connections, "project_local");
   for (const [name, entry] of Object.entries(local.connections || {}))
     if (Object.hasOwn(entry, "url")) sources[name] = "project_local";
   const stateOverride = instance_file(config, root, state);
@@ -81,7 +95,7 @@ export function resolved_settings(
     else continue;
     if (extra !== null) {
       check_schema(extra, "project-local.schema.json");
-      overrides = deep_merge(overrides, extra);
+      merge_overrides(extra);
       const source =
         file === stateOverride
           ? "instance"
@@ -89,6 +103,7 @@ export function resolved_settings(
               file === resolve(process.env.EDT_AI_CONNECTIONS_FILE)
             ? "connections_file"
             : "repository_instance";
+      record_sources(extra.connections, source);
       for (const [name, entry] of Object.entries(extra.connections || {}))
         if (Object.hasOwn(entry, "url")) sources[name] = source;
     }
@@ -107,28 +122,35 @@ export function resolved_settings(
       sources.edt = "edt_workspace";
     }
   }
-  for (const name of ["edt", "v8std"]) {
+  for (const name of ["edt", "v8std", "openviking"]) {
+    const defaults = name === "openviking" ? config.mcp.optional[name] : config.mcp.required[name];
     const variable =
       connections[name]?.url_env || `EDT_AI_${name.toUpperCase()}_URL`;
     if (Object.hasOwn(process.env, variable)) {
       overlay[name] = { ...overlay[name], url: process.env[variable] };
       sources[name] = "environment:" + variable;
+      if (name === "openviking") fieldSources.openviking.url = sources[name];
     } else
       sources[name] ||=
-        config.mcp.required[name].url &&
+        defaults?.url &&
         (name !== "edt" || legacy_edt_matches(config, root))
-          ? "legacy"
+          ? name === "openviking" ? "settings" : "legacy"
           : "unconfigured";
   }
-  for (const [name, entry] of Object.entries(overlay))
-    if (entry.url) validate_url(entry.url, name);
-  return [
-    deep_merge(config, {
+  for (const [name, entry] of Object.entries(overlay)) {
+    if (entry.url) name === "openviking" ? validate_openviking_url(entry.url) : validate_url(entry.url, name);
+    delete entry.url_env; // Resolution metadata is not part of the transport contract.
+  }
+  const openviking = overlay.openviking;
+  delete overlay.openviking;
+  const effective = deep_merge(config, {
       active_project: resolve(root),
-      mcp: { required: overlay, managed: overrides.components || {} },
-    }),
-    sources,
-  ];
+      mcp: { required: overlay, managed: overrides.components || {},
+        ...(openviking ? { optional: { openviking } } : {}) },
+    });
+  if (Object.hasOwn(openviking || {}, "headers_env"))
+    effective.mcp.optional.openviking.headers_env = structuredClone(openviking.headers_env);
+  return [effective, sources, fieldSources];
 }
 export const effective_settings = (...args) => resolved_settings(...args)[0];
 export function context_revision(selected) {

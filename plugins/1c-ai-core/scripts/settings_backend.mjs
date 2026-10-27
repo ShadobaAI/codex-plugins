@@ -53,6 +53,8 @@ import { managed_components, component_enabled, grant_preparation, require_prepa
 import { directory_context, edt_connection, edt_port_suggestion } from "./directory_context.mjs";
 import { profile_history, remember_profile, profile_summary } from "./profile_history.mjs";
 import { read_readiness, save_readiness } from "./setup_readiness.mjs";
+import { knowledge_status } from "./knowledge.mjs";
+import { environment_compatibility, safe_error_message, sanitize_setup_result } from "./diagnostics.mjs";
 
 export const FIELDS = {
   projectRoot: ["active_project"],
@@ -66,6 +68,9 @@ export const FIELDS = {
   bslLsAllowPrerelease: ["mcp", "managed", "bsl-ls", "allow_prerelease"],
   openvikingEnabled: ["mcp", "optional", "openviking", "enabled"],
   openvikingUrl: ["mcp", "optional", "openviking", "url"],
+  openvikingTimeout: ["mcp", "optional", "openviking", "timeout_seconds"],
+  openvikingMaxResponseBytes: ["mcp", "optional", "openviking", "max_response_bytes"],
+  openvikingHeadersEnv: ["mcp", "optional", "openviking", "headers_env"],
 };
 const bytes = (file) => (file && exists(file) ? fs.readFileSync(file) : null);
 const restore = (file, previous) => {
@@ -127,6 +132,7 @@ export class SettingsBackend {
     return config;
   }
   effective(config, override = null, profile = null, with_sources = false) {
+    let fieldSources = {};
     let sources = Object.fromEntries(
       Object.entries(config.mcp.required).map(([name, item]) => [
         name,
@@ -144,9 +150,9 @@ export class SettingsBackend {
         if (!(error instanceof ProfileNotFound)) throw error;
         root = configuration_root(config.active_project);
       }
-      [config, sources] = resolved_settings(config, root, data, override);
+      [config, sources, fieldSources] = resolved_settings(config, root, data, override);
     }
-    return with_sources ? [config, sources] : config;
+    return with_sources ? [config, sources, fieldSources] : config;
   }
   values(config, applyEffective = true) {
     if (applyEffective) config = this.effective(config);
@@ -154,7 +160,7 @@ export class SettingsBackend {
       Object.entries(FIELDS).map(([name, parts]) => {
         let item = config;
         for (const part of parts) item = object(item) ? item[part] : null;
-        return [name, ["string", "boolean"].includes(typeof item) ? item : ""];
+        return [name, item == null ? "" : structuredClone(item)];
       }),
     );
   }
@@ -190,9 +196,16 @@ export class SettingsBackend {
         Buffer.from(resolve(target)),
         bytes(target) || Buffer.alloc(0),
       );
-    if (config.active_project)
+    if (config.active_project) {
+      // Track source revisions even when a higher-priority value masks them or
+      // the imported document does not replace the current profile.
+      for (const name of [".ai/project.yaml", ".ai/project.local.yaml"]) {
+        const file = inside(config.active_project, name);
+        chunks.push(Buffer.from(file), bytes(file) || Buffer.alloc(0));
+      }
       for (const file of instance_files(config, config.active_project))
         chunks.push(Buffer.from(file), bytes(file) || Buffer.alloc(0));
+    }
     if (config.active_project)
       chunks.push(Buffer.from(stable(edt_connection(config.active_project))));
     return sha256(Buffer.concat(chunks));
@@ -253,7 +266,7 @@ export class SettingsBackend {
         if (Object.hasOwn(entry, "url")) {
           const value = entry.url;
           delete entry.url;
-          if (value) connections[name] = { url: validate_url(value, name) };
+          connections[name] = { url: value ? validate_url(value, name) : "" };
         }
       imported = data.profile == null ? null : structuredClone(data.profile);
       if (!editing) config = deep_merge(config, changes);
@@ -325,9 +338,15 @@ export class SettingsBackend {
       const config = this.effective(this.current()), root = config.active_project;
       if (!root) throw new ConfigError("Выберите папку проекта.");
       if (request.connections !== undefined) {
-        if (!object(request.connections) || Object.keys(request.connections).some(name => !["edt", "v8std"].includes(name)))
+        if (!object(request.connections) || Object.keys(request.connections).some(name => !["edt", "v8std", "openviking"].includes(name)))
           throw new ConfigError("Некорректные подключения для проверки.");
         for (const [name, url] of Object.entries(request.connections)) {
+          if (name === "openviking") {
+            check_schema({ connections: { openviking: url } }, "project-local.schema.json");
+            config.mcp.optional.openviking = { ...config.mcp.optional.openviking, ...structuredClone(url) };
+            validate_settings(config);
+            continue;
+          }
           if (typeof url !== "string") throw new ConfigError("Адрес подключения должен быть строкой.");
           config.mcp.required[name].url = url ? validate_url(url, name) : "";
         }
@@ -339,7 +358,7 @@ export class SettingsBackend {
       const { installed_versions } = await import("./runtime.mjs");
       const config = this.current(true), profile = profile_state(config.active_project);
       // A broken profile must not prevent opening its repair/import screen.
-      const [effective, sources] = ["invalid", "ambiguous"].includes(profile.status)
+      const [effective, sources, fieldSources = {}] = ["invalid", "ambiguous"].includes(profile.status)
         ? [config, {}] : this.effective(config, null, null, true);
       const actual = this.values(effective, false);
       if (request.remember) remember_profile(this.STATE, config.active_project, profile);
@@ -353,6 +372,7 @@ export class SettingsBackend {
       const profileDirectoryContext = config.active_project && directoryContext?.directory !== config.active_project
         ? directory_context(config.active_project) : directoryContext;
       const readiness = await read_readiness(this.STATE, effective, profile);
+      const knowledge = profile.status === "loaded" ? knowledge_status(project_profile(config.active_project), effective) : null;
       return {
         values: actual,
         installedVersions: installed_versions(this.STATE, config.active_project),
@@ -361,13 +381,17 @@ export class SettingsBackend {
         profileDirectoryContext,
         edtPortSuggestion: edt_port_suggestion(actual.edtUrl, profileDirectoryContext?.edt?.connection),
         readiness,
+        knowledge,
+        environmentCompatibility: environment_compatibility({ projectRoot: config.active_project }),
         sessionGuidance: session_guidance,
         instance: instance_name(),
         connectionSources: sources,
+        valueSources: Object.fromEntries(Object.entries(FIELDS).filter(([key]) => key.startsWith("openviking"))
+          .map(([key, parts]) => [key, fieldSources.openviking?.[parts.at(-1)] || "settings"])),
         preparationScope: preparation_scope(actual.projectRoot),
         legacyState: legacy,
         profileHistory: profile_history(this.STATE, actual.projectRoot),
-        summary: await profile_summary(this.STATE, effective, profile, readiness),
+        summary: await profile_summary(this.STATE, effective, profile, readiness, knowledge),
       };
     }
     if (["create", "load"].includes(action)) {
@@ -395,7 +419,7 @@ export class SettingsBackend {
       });
     }
     if (action === "reset_connection") {
-      if (!["edt", "v8std"].includes(request.connection)) throw new ConfigError("Неизвестное подключение.");
+      if (!["edt", "v8std", "openviking"].includes(request.connection)) throw new ConfigError("Неизвестное подключение.");
       return operation_lock(this.STATE, () => {
         const config = this.current(), root = config.active_project;
         if (!root) throw new ConfigError("Выберите папку проекта.");
@@ -424,7 +448,9 @@ export class SettingsBackend {
         throw new ConfigError("Некорректное изменение настроек.");
       for (const [key, value] of Object.entries(changes))
         if (
-          typeof value !== (key.endsWith("Enabled") || key.endsWith("AllowPrerelease") ? "boolean" : "string")
+          typeof value !== (key.endsWith("Enabled") || key.endsWith("AllowPrerelease") ? "boolean"
+            : ["openvikingTimeout", "openvikingMaxResponseBytes"].includes(key) ? "number"
+            : key === "openvikingHeadersEnv" ? "object" : "string")
         )
           throw new ConfigError("Некорректный тип настройки: " + key);
       const selected = this.lockedRoot();
@@ -454,15 +480,17 @@ export class SettingsBackend {
             config.active_project = value;
             continue;
           }
-          if (["edtUrl", "v8stdUrl"].includes(key)) {
+          if (["edtUrl", "v8stdUrl"].includes(key) || key.startsWith("openviking")) {
             if (!config.active_project)
               throw new ConfigError(
                 "Для настройки подключений выберите папку проекта.",
               );
             root = configuration_root(config.active_project);
-            (instanceChanges.connections ||= {})[
-              key === "edtUrl" ? "edt" : "v8std"
-            ] = { url: value ? validate_url(value) : "" };
+            const name = key.startsWith("openviking") ? "openviking" : key === "edtUrl" ? "edt" : "v8std";
+            const connections = instanceChanges.connections ||= {};
+            const member = FIELDS[key].at(-1);
+            connections[name] = { ...connections[name],
+              [member]: member === "url" ? value ? validate_url(value) : "" : value };
             continue;
           }
           if (["codeIndexEnabled", "bslLsEnabled"].includes(key)) {
@@ -485,6 +513,8 @@ export class SettingsBackend {
           overrides = exists(file) ? load(file) : { connections: {} };
           check_schema(overrides, "project-local.schema.json");
           overrides = deep_merge(overrides, instanceChanges);
+          if (Object.hasOwn(changes, "openvikingHeadersEnv"))
+            overrides.connections.openviking.headers_env = structuredClone(changes.openvikingHeadersEnv);
           check_schema(overrides, "project-local.schema.json");
           effective_settings(
             config,
@@ -522,6 +552,7 @@ export class SettingsBackend {
         ),
         edtConfigured: !!applied.mcp.required.edt.url,
         v8stdConfigured: !!applied.mcp.required.v8std.url,
+        openviking: structuredClone(applied.mcp.optional.openviking),
         replacesProfile: !!(target && exists(target)),
         connectionUrls: Object.fromEntries(
           Object.entries(applied.mcp.required).map(([name, item]) => [
@@ -618,7 +649,7 @@ export class SettingsBackend {
       if (Object.hasOwn(request, "version") && request.operation !== "install") throw new ConfigError("Версия задаётся только для установки.");
       if (request.operation === "check") return { components: await Promise.all((component ? [component] : managed_components).map(async id => {
         try { return await runtime.check_updates(this.STATE, config, id); }
-        catch (error) { return { component: id, state: "error", detail: error.message }; }
+        catch (error) { return { component: id, state: "error", detail: safe_error_message(error) }; }
       })), projectRoot: config.active_project };
       if (!managed_components.includes(component)) throw new ConfigError("Выберите компонент.");
       let projectRoot;
@@ -698,12 +729,12 @@ export class SettingsBackend {
             version: item.server?.version,
           };
         } catch (error) {
-          const busy = error.message.includes("Another runtime operation");
+          const busy = error.remote !== true && error.message.includes("Another runtime operation");
           return {
             name: component,
             ready: false,
             state: busy ? "preparing" : "error",
-            detail: busy ? "Подготовка окружения выполняется…" : error.message,
+            detail: busy ? "Подготовка окружения выполняется…" : safe_error_message(error),
           };
         }
       };
@@ -720,7 +751,7 @@ export class SettingsBackend {
           name: "policy",
           ready: false,
           state: "error",
-          detail: error.message,
+          detail: safe_error_message(error),
         };
       } };
       const { probe_connections } = await import("./setup_probe.mjs");
@@ -741,7 +772,7 @@ export class SettingsBackend {
         ({ external } = await probe_connections(config, root, data));
       }
       const readiness = save_readiness(this.STATE, config, data, managed, external);
-      return {
+      return sanitize_setup_result({
         managed,
         projectRoot: root,
         instance: instance_name(),
@@ -749,7 +780,9 @@ export class SettingsBackend {
         external,
         readiness,
         fullReadiness: readiness.state === "ready" ? "verified" : "not_ready",
-      };
+        readinessScope: "setup",
+        workflowReadiness: readiness.workflowReadiness,
+      });
     }
     throw new ConfigError("Неизвестная операция.");
   }
@@ -765,7 +798,7 @@ if (entrypoint(import.meta.url)) {
     const result = await new SettingsBackend().main(JSON.parse(input));
     console.log(JSON.stringify({ ok: true, result }));
   } catch (error) {
-    console.log(JSON.stringify({ ok: false, error: error.message, ...(error.code ? { errorCode: error.code } : {}), ...(error.outcomeUnknown ? { outcomeUnknown: true } : {}) }));
+    console.log(JSON.stringify({ ok: false, error: safe_error_message(error), ...(error.code ? { errorCode: error.code } : {}), ...(error.outcomeUnknown ? { outcomeUnknown: true } : {}) }));
     process.exitCode = 1;
   }
 }

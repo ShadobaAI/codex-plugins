@@ -1,6 +1,6 @@
-schema_version: '0.1'
+schema_version: '0.2'
 profile_id: generic-1c
-profile_version: 0.1.0
+profile_version: 0.2.0
 project:
   id: generic-1c
   adapter: generic-1c
@@ -21,8 +21,12 @@ testing:
   yaxunit: false
   vanessa: false
 knowledge:
+  mode: disabled
   provider: none
   manifest: null
+  collections: []
+  required: false
+  dependent_actions: []
 compatibility:
   core: '>=0.1.0'
 
