@@ -14863,6 +14863,462 @@ var require_draft7 = __commonJS({
   }
 });
 
+// node_modules/ajv/dist/refs/json-schema-2019-09/schema.json
+var require_schema5 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/schema.json"(exports, module) {
+    module.exports = {
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      $id: "https://json-schema.org/draft/2019-09/schema",
+      $vocabulary: {
+        "https://json-schema.org/draft/2019-09/vocab/core": true,
+        "https://json-schema.org/draft/2019-09/vocab/applicator": true,
+        "https://json-schema.org/draft/2019-09/vocab/validation": true,
+        "https://json-schema.org/draft/2019-09/vocab/meta-data": true,
+        "https://json-schema.org/draft/2019-09/vocab/format": false,
+        "https://json-schema.org/draft/2019-09/vocab/content": true
+      },
+      $recursiveAnchor: true,
+      title: "Core and Validation specifications meta-schema",
+      allOf: [
+        { $ref: "meta/core" },
+        { $ref: "meta/applicator" },
+        { $ref: "meta/validation" },
+        { $ref: "meta/meta-data" },
+        { $ref: "meta/format" },
+        { $ref: "meta/content" }
+      ],
+      type: ["object", "boolean"],
+      properties: {
+        definitions: {
+          $comment: "While no longer an official keyword as it is replaced by $defs, this keyword is retained in the meta-schema to prevent incompatible extensions as it remains in common use.",
+          type: "object",
+          additionalProperties: { $recursiveRef: "#" },
+          default: {}
+        },
+        dependencies: {
+          $comment: '"dependencies" is no longer a keyword, but schema authors should avoid redefining it to facilitate a smooth transition to "dependentSchemas" and "dependentRequired"',
+          type: "object",
+          additionalProperties: {
+            anyOf: [{ $recursiveRef: "#" }, { $ref: "meta/validation#/$defs/stringArray" }]
+          }
+        }
+      }
+    };
+  }
+});
+
+// node_modules/ajv/dist/refs/json-schema-2019-09/meta/applicator.json
+var require_applicator3 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/meta/applicator.json"(exports, module) {
+    module.exports = {
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      $id: "https://json-schema.org/draft/2019-09/meta/applicator",
+      $vocabulary: {
+        "https://json-schema.org/draft/2019-09/vocab/applicator": true
+      },
+      $recursiveAnchor: true,
+      title: "Applicator vocabulary meta-schema",
+      type: ["object", "boolean"],
+      properties: {
+        additionalItems: { $recursiveRef: "#" },
+        unevaluatedItems: { $recursiveRef: "#" },
+        items: {
+          anyOf: [{ $recursiveRef: "#" }, { $ref: "#/$defs/schemaArray" }]
+        },
+        contains: { $recursiveRef: "#" },
+        additionalProperties: { $recursiveRef: "#" },
+        unevaluatedProperties: { $recursiveRef: "#" },
+        properties: {
+          type: "object",
+          additionalProperties: { $recursiveRef: "#" },
+          default: {}
+        },
+        patternProperties: {
+          type: "object",
+          additionalProperties: { $recursiveRef: "#" },
+          propertyNames: { format: "regex" },
+          default: {}
+        },
+        dependentSchemas: {
+          type: "object",
+          additionalProperties: {
+            $recursiveRef: "#"
+          }
+        },
+        propertyNames: { $recursiveRef: "#" },
+        if: { $recursiveRef: "#" },
+        then: { $recursiveRef: "#" },
+        else: { $recursiveRef: "#" },
+        allOf: { $ref: "#/$defs/schemaArray" },
+        anyOf: { $ref: "#/$defs/schemaArray" },
+        oneOf: { $ref: "#/$defs/schemaArray" },
+        not: { $recursiveRef: "#" }
+      },
+      $defs: {
+        schemaArray: {
+          type: "array",
+          minItems: 1,
+          items: { $recursiveRef: "#" }
+        }
+      }
+    };
+  }
+});
+
+// node_modules/ajv/dist/refs/json-schema-2019-09/meta/content.json
+var require_content2 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/meta/content.json"(exports, module) {
+    module.exports = {
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      $id: "https://json-schema.org/draft/2019-09/meta/content",
+      $vocabulary: {
+        "https://json-schema.org/draft/2019-09/vocab/content": true
+      },
+      $recursiveAnchor: true,
+      title: "Content vocabulary meta-schema",
+      type: ["object", "boolean"],
+      properties: {
+        contentMediaType: { type: "string" },
+        contentEncoding: { type: "string" },
+        contentSchema: { $recursiveRef: "#" }
+      }
+    };
+  }
+});
+
+// node_modules/ajv/dist/refs/json-schema-2019-09/meta/core.json
+var require_core4 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/meta/core.json"(exports, module) {
+    module.exports = {
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      $id: "https://json-schema.org/draft/2019-09/meta/core",
+      $vocabulary: {
+        "https://json-schema.org/draft/2019-09/vocab/core": true
+      },
+      $recursiveAnchor: true,
+      title: "Core vocabulary meta-schema",
+      type: ["object", "boolean"],
+      properties: {
+        $id: {
+          type: "string",
+          format: "uri-reference",
+          $comment: "Non-empty fragments not allowed.",
+          pattern: "^[^#]*#?$"
+        },
+        $schema: {
+          type: "string",
+          format: "uri"
+        },
+        $anchor: {
+          type: "string",
+          pattern: "^[A-Za-z][-A-Za-z0-9.:_]*$"
+        },
+        $ref: {
+          type: "string",
+          format: "uri-reference"
+        },
+        $recursiveRef: {
+          type: "string",
+          format: "uri-reference"
+        },
+        $recursiveAnchor: {
+          type: "boolean",
+          default: false
+        },
+        $vocabulary: {
+          type: "object",
+          propertyNames: {
+            type: "string",
+            format: "uri"
+          },
+          additionalProperties: {
+            type: "boolean"
+          }
+        },
+        $comment: {
+          type: "string"
+        },
+        $defs: {
+          type: "object",
+          additionalProperties: { $recursiveRef: "#" },
+          default: {}
+        }
+      }
+    };
+  }
+});
+
+// node_modules/ajv/dist/refs/json-schema-2019-09/meta/format.json
+var require_format3 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/meta/format.json"(exports, module) {
+    module.exports = {
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      $id: "https://json-schema.org/draft/2019-09/meta/format",
+      $vocabulary: {
+        "https://json-schema.org/draft/2019-09/vocab/format": true
+      },
+      $recursiveAnchor: true,
+      title: "Format vocabulary meta-schema",
+      type: ["object", "boolean"],
+      properties: {
+        format: { type: "string" }
+      }
+    };
+  }
+});
+
+// node_modules/ajv/dist/refs/json-schema-2019-09/meta/meta-data.json
+var require_meta_data2 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/meta/meta-data.json"(exports, module) {
+    module.exports = {
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      $id: "https://json-schema.org/draft/2019-09/meta/meta-data",
+      $vocabulary: {
+        "https://json-schema.org/draft/2019-09/vocab/meta-data": true
+      },
+      $recursiveAnchor: true,
+      title: "Meta-data vocabulary meta-schema",
+      type: ["object", "boolean"],
+      properties: {
+        title: {
+          type: "string"
+        },
+        description: {
+          type: "string"
+        },
+        default: true,
+        deprecated: {
+          type: "boolean",
+          default: false
+        },
+        readOnly: {
+          type: "boolean",
+          default: false
+        },
+        writeOnly: {
+          type: "boolean",
+          default: false
+        },
+        examples: {
+          type: "array",
+          items: true
+        }
+      }
+    };
+  }
+});
+
+// node_modules/ajv/dist/refs/json-schema-2019-09/meta/validation.json
+var require_validation3 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/meta/validation.json"(exports, module) {
+    module.exports = {
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      $id: "https://json-schema.org/draft/2019-09/meta/validation",
+      $vocabulary: {
+        "https://json-schema.org/draft/2019-09/vocab/validation": true
+      },
+      $recursiveAnchor: true,
+      title: "Validation vocabulary meta-schema",
+      type: ["object", "boolean"],
+      properties: {
+        multipleOf: {
+          type: "number",
+          exclusiveMinimum: 0
+        },
+        maximum: {
+          type: "number"
+        },
+        exclusiveMaximum: {
+          type: "number"
+        },
+        minimum: {
+          type: "number"
+        },
+        exclusiveMinimum: {
+          type: "number"
+        },
+        maxLength: { $ref: "#/$defs/nonNegativeInteger" },
+        minLength: { $ref: "#/$defs/nonNegativeIntegerDefault0" },
+        pattern: {
+          type: "string",
+          format: "regex"
+        },
+        maxItems: { $ref: "#/$defs/nonNegativeInteger" },
+        minItems: { $ref: "#/$defs/nonNegativeIntegerDefault0" },
+        uniqueItems: {
+          type: "boolean",
+          default: false
+        },
+        maxContains: { $ref: "#/$defs/nonNegativeInteger" },
+        minContains: {
+          $ref: "#/$defs/nonNegativeInteger",
+          default: 1
+        },
+        maxProperties: { $ref: "#/$defs/nonNegativeInteger" },
+        minProperties: { $ref: "#/$defs/nonNegativeIntegerDefault0" },
+        required: { $ref: "#/$defs/stringArray" },
+        dependentRequired: {
+          type: "object",
+          additionalProperties: {
+            $ref: "#/$defs/stringArray"
+          }
+        },
+        const: true,
+        enum: {
+          type: "array",
+          items: true
+        },
+        type: {
+          anyOf: [
+            { $ref: "#/$defs/simpleTypes" },
+            {
+              type: "array",
+              items: { $ref: "#/$defs/simpleTypes" },
+              minItems: 1,
+              uniqueItems: true
+            }
+          ]
+        }
+      },
+      $defs: {
+        nonNegativeInteger: {
+          type: "integer",
+          minimum: 0
+        },
+        nonNegativeIntegerDefault0: {
+          $ref: "#/$defs/nonNegativeInteger",
+          default: 0
+        },
+        simpleTypes: {
+          enum: ["array", "boolean", "integer", "null", "number", "object", "string"]
+        },
+        stringArray: {
+          type: "array",
+          items: { type: "string" },
+          uniqueItems: true,
+          default: []
+        }
+      }
+    };
+  }
+});
+
+// node_modules/ajv/dist/refs/json-schema-2019-09/index.js
+var require_json_schema_2019_09 = __commonJS({
+  "node_modules/ajv/dist/refs/json-schema-2019-09/index.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var metaSchema = require_schema5();
+    var applicator = require_applicator3();
+    var content = require_content2();
+    var core = require_core4();
+    var format = require_format3();
+    var metadata = require_meta_data2();
+    var validation = require_validation3();
+    var META_SUPPORT_DATA = ["/properties"];
+    function addMetaSchema2019($data) {
+      ;
+      [
+        metaSchema,
+        applicator,
+        content,
+        core,
+        with$data(this, format),
+        metadata,
+        with$data(this, validation)
+      ].forEach((sch) => this.addMetaSchema(sch, void 0, false));
+      return this;
+      function with$data(ajv, sch) {
+        return $data ? ajv.$dataMetaSchema(sch, META_SUPPORT_DATA) : sch;
+      }
+    }
+    exports.default = addMetaSchema2019;
+  }
+});
+
+// node_modules/ajv/dist/2019.js
+var require__2 = __commonJS({
+  "node_modules/ajv/dist/2019.js"(exports, module) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.MissingRefError = exports.ValidationError = exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = exports.Ajv2019 = void 0;
+    var core_1 = require_core();
+    var draft7_1 = require_draft7();
+    var dynamic_1 = require_dynamic();
+    var next_1 = require_next();
+    var unevaluated_1 = require_unevaluated();
+    var discriminator_1 = require_discriminator();
+    var json_schema_2019_09_1 = require_json_schema_2019_09();
+    var META_SCHEMA_ID = "https://json-schema.org/draft/2019-09/schema";
+    var Ajv2019 = class extends core_1.default {
+      constructor(opts = {}) {
+        super({
+          ...opts,
+          dynamicRef: true,
+          next: true,
+          unevaluated: true
+        });
+      }
+      _addVocabularies() {
+        super._addVocabularies();
+        this.addVocabulary(dynamic_1.default);
+        draft7_1.default.forEach((v) => this.addVocabulary(v));
+        this.addVocabulary(next_1.default);
+        this.addVocabulary(unevaluated_1.default);
+        if (this.opts.discriminator)
+          this.addKeyword(discriminator_1.default);
+      }
+      _addDefaultMetaSchema() {
+        super._addDefaultMetaSchema();
+        const { $data, meta } = this.opts;
+        if (!meta)
+          return;
+        json_schema_2019_09_1.default.call(this, $data);
+        this.refs["http://json-schema.org/schema"] = META_SCHEMA_ID;
+      }
+      defaultMeta() {
+        return this.opts.defaultMeta = super.defaultMeta() || (this.getSchema(META_SCHEMA_ID) ? META_SCHEMA_ID : void 0);
+      }
+    };
+    exports.Ajv2019 = Ajv2019;
+    module.exports = exports = Ajv2019;
+    module.exports.Ajv2019 = Ajv2019;
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = Ajv2019;
+    var validate_1 = require_validate();
+    Object.defineProperty(exports, "KeywordCxt", { enumerable: true, get: function() {
+      return validate_1.KeywordCxt;
+    } });
+    var codegen_1 = require_codegen();
+    Object.defineProperty(exports, "_", { enumerable: true, get: function() {
+      return codegen_1._;
+    } });
+    Object.defineProperty(exports, "str", { enumerable: true, get: function() {
+      return codegen_1.str;
+    } });
+    Object.defineProperty(exports, "stringify", { enumerable: true, get: function() {
+      return codegen_1.stringify;
+    } });
+    Object.defineProperty(exports, "nil", { enumerable: true, get: function() {
+      return codegen_1.nil;
+    } });
+    Object.defineProperty(exports, "Name", { enumerable: true, get: function() {
+      return codegen_1.Name;
+    } });
+    Object.defineProperty(exports, "CodeGen", { enumerable: true, get: function() {
+      return codegen_1.CodeGen;
+    } });
+    var validation_error_1 = require_validation_error();
+    Object.defineProperty(exports, "ValidationError", { enumerable: true, get: function() {
+      return validation_error_1.default;
+    } });
+    var ref_error_1 = require_ref_error();
+    Object.defineProperty(exports, "MissingRefError", { enumerable: true, get: function() {
+      return ref_error_1.default;
+    } });
+  }
+});
+
 // node_modules/ajv/dist/refs/json-schema-draft-07.json
 var require_json_schema_draft_07 = __commonJS({
   "node_modules/ajv/dist/refs/json-schema-draft-07.json"(exports, module) {
@@ -15093,7 +15549,147 @@ var require_ajv = __commonJS({
 // tools/vendor-entry.mjs
 var import_yaml = __toESM(require_dist(), 1);
 var import__ = __toESM(require__(), 1);
+var import__2 = __toESM(require__2(), 1);
 var import_ajv = __toESM(require_ajv(), 1);
+
+// node_modules/ajv/dist/refs/json-schema-draft-06.json
+var json_schema_draft_06_default = {
+  $schema: "http://json-schema.org/draft-06/schema#",
+  $id: "http://json-schema.org/draft-06/schema#",
+  title: "Core schema meta-schema",
+  definitions: {
+    schemaArray: {
+      type: "array",
+      minItems: 1,
+      items: { $ref: "#" }
+    },
+    nonNegativeInteger: {
+      type: "integer",
+      minimum: 0
+    },
+    nonNegativeIntegerDefault0: {
+      allOf: [{ $ref: "#/definitions/nonNegativeInteger" }, { default: 0 }]
+    },
+    simpleTypes: {
+      enum: ["array", "boolean", "integer", "null", "number", "object", "string"]
+    },
+    stringArray: {
+      type: "array",
+      items: { type: "string" },
+      uniqueItems: true,
+      default: []
+    }
+  },
+  type: ["object", "boolean"],
+  properties: {
+    $id: {
+      type: "string",
+      format: "uri-reference"
+    },
+    $schema: {
+      type: "string",
+      format: "uri"
+    },
+    $ref: {
+      type: "string",
+      format: "uri-reference"
+    },
+    title: {
+      type: "string"
+    },
+    description: {
+      type: "string"
+    },
+    default: {},
+    examples: {
+      type: "array",
+      items: {}
+    },
+    multipleOf: {
+      type: "number",
+      exclusiveMinimum: 0
+    },
+    maximum: {
+      type: "number"
+    },
+    exclusiveMaximum: {
+      type: "number"
+    },
+    minimum: {
+      type: "number"
+    },
+    exclusiveMinimum: {
+      type: "number"
+    },
+    maxLength: { $ref: "#/definitions/nonNegativeInteger" },
+    minLength: { $ref: "#/definitions/nonNegativeIntegerDefault0" },
+    pattern: {
+      type: "string",
+      format: "regex"
+    },
+    additionalItems: { $ref: "#" },
+    items: {
+      anyOf: [{ $ref: "#" }, { $ref: "#/definitions/schemaArray" }],
+      default: {}
+    },
+    maxItems: { $ref: "#/definitions/nonNegativeInteger" },
+    minItems: { $ref: "#/definitions/nonNegativeIntegerDefault0" },
+    uniqueItems: {
+      type: "boolean",
+      default: false
+    },
+    contains: { $ref: "#" },
+    maxProperties: { $ref: "#/definitions/nonNegativeInteger" },
+    minProperties: { $ref: "#/definitions/nonNegativeIntegerDefault0" },
+    required: { $ref: "#/definitions/stringArray" },
+    additionalProperties: { $ref: "#" },
+    definitions: {
+      type: "object",
+      additionalProperties: { $ref: "#" },
+      default: {}
+    },
+    properties: {
+      type: "object",
+      additionalProperties: { $ref: "#" },
+      default: {}
+    },
+    patternProperties: {
+      type: "object",
+      additionalProperties: { $ref: "#" },
+      default: {}
+    },
+    dependencies: {
+      type: "object",
+      additionalProperties: {
+        anyOf: [{ $ref: "#" }, { $ref: "#/definitions/stringArray" }]
+      }
+    },
+    propertyNames: { $ref: "#" },
+    const: {},
+    enum: {
+      type: "array",
+      minItems: 1,
+      uniqueItems: true
+    },
+    type: {
+      anyOf: [
+        { $ref: "#/definitions/simpleTypes" },
+        {
+          type: "array",
+          items: { $ref: "#/definitions/simpleTypes" },
+          minItems: 1,
+          uniqueItems: true
+        }
+      ]
+    },
+    format: { type: "string" },
+    allOf: { $ref: "#/definitions/schemaArray" },
+    anyOf: { $ref: "#/definitions/schemaArray" },
+    oneOf: { $ref: "#/definitions/schemaArray" },
+    not: { $ref: "#" }
+  },
+  default: {}
+};
 
 // node_modules/fflate/esm/index.mjs
 import { createRequire } from "module";
@@ -16081,12 +16677,15 @@ function unzipSync(data, opts) {
   return files;
 }
 var export_Ajv = import_ajv.default;
+var export_Ajv2019 = import__2.default;
 var export_Ajv2020 = import__.default;
 var export_parseDocument = import_yaml.parseDocument;
 var export_stringify = import_yaml.stringify;
 export {
   export_Ajv as Ajv,
+  export_Ajv2019 as Ajv2019,
   export_Ajv2020 as Ajv2020,
+  json_schema_draft_06_default as draft6MetaSchema,
   export_parseDocument as parseDocument,
   export_stringify as stringify,
   unzipSync,
