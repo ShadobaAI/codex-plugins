@@ -1,8 +1,8 @@
 {
   "plugin": "1c-ai-core-preview",
-  "version": "0.4.3-preview.5",
+  "version": "0.4.3-preview.6",
   "profile": "preview",
-  "revision": "1a3d3b4ae1633452ca62c6b7801be16e9401c18a",
+  "revision": "c0afdf1e8f3293ab1e0f612f93953658d2a02b55",
   "dirty": false,
-  "runId": "41041010186"
+  "runId": "41042299937"
 }

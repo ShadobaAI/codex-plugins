@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "1c-ai-core-preview",
-  "version": "0.4.3-preview.5",
+  "version": "0.4.3-preview.6",
   "description": "Универсальное ИИ-ядро для разработки проектов 1С.",
   "author": {
     "name": "ShadobaAI"
