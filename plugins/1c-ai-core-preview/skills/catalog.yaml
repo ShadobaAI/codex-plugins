@@ -1,0 +1,155 @@
+version: 0.1.0
+source_projects:
+  crm:
+    repository: https://git.fsk.ru/ShadobaAI/crm-ai-dev.git
+    skills_path: skills
+    observed_revision: 706d678b8cf321602716ab80c1020a3b4d28bdf8
+  kafka:
+    repository: https://github.com/ShadobaAI/kafka-tools.git
+    skills_path: ai/.codex/skills
+    observed_revision: 2552aa7ddcc0cbe6fa41080c791a60d56bef55ad
+active:
+  - edt-ai-core
+  - 1c-routing
+  - 1c-code-change
+  - 1c-code-index
+  - 1c-platform-docs
+  - 1c-standards
+  - bsl-ls-mcp
+  - task-orchestration
+  - yaxunit-tests
+  - vanessa-ui-tests
+  - 1c-branch-review
+migration_acceptance: pending_detailed_behavior_reconciliation
+accepted_decisions_local_acceptance: source_and_fixture_verified
+migration_decisions:
+  project-profiles-outside-plugin:
+    status: accepted
+    decided_on: '2026-10-20'
+    decided_by: user
+    scope: repository layout, bundled profiles, CLI presets and package contents
+    consequences:
+      - "The repository contains only the universal plugin; its root is the plugin root."
+      - "CRM/Kafka profiles and local exports were removed; the user retained copies outside the repository."
+      - "CRM/Kafka profile development is deferred to a separate task; cleanup or completeness checks do not require restoring them."
+      - "Only generic-1c remains bundled; real profiles belong to project repositories or local user settings."
+  bsl-native-multi-workspace:
+    status: accepted
+    decided_on: '2026-10-20'
+    decided_by: user
+    scope: BSL LS proxy, managed runtime, settings and skills
+    consequences:
+      - "The mandatory assigned EDT-MCP supplies configuration paths; Codex passes them to the proxy, which does not duplicate EDT discovery."
+      - "BSL LS registers multiple workspaces through native tools; files or workspaceFolder select context without restarting when switching."
+      - "Each stdio session owns its process and registrations; other projects and sessions are not switched."
+      - "Single-repository selection in settings, profiles and CLI was removed; backward compatibility is not required."
+      - "Optional configuration is passed to native global and workspace loaders; no empty file replaces a missing one."
+      - "Native workspace API support is checked against the live contract, without version pins or roots fallback."
+    review_contract:
+      - "Distinguish support in supplied source from the actually installed JAR; artifact incompatibility limits live acceptance."
+      - "Check session isolation, Unicode and URI, directory boundaries, ID routing, request queues and child-process termination."
+  platform-documentation-edt-only:
+    status: accepted
+    decided_on: '2026-10-19'
+    decided_by: user
+    scope: 1c-ai-core skills, project profiles, installation and readiness checks
+    authority: edt
+    excluded_source_servers:
+      - HelpSearchServer
+      - 1c-docs-mcp
+    rationale:
+      - "Help complicates installation and substantially increases environment requirements."
+      - "CRM already has Help, while Kafka would require purchasing and maintaining an additional paid MCP."
+    consequences:
+      - "Help is excluded from the core, including as an additional provider; its presence in source CRM does not change core routing."
+      - "Platform reference and API applicability checks use the assigned EDT."
+      - "v8std remains the normative corpus, and code-index discovers installed library contracts."
+      - "Detailed EDT help and get_content_assist with extendedDocumentation are used only for specific needs."
+      - "Missing defaults, notes, contexts, guides and version history are recorded as gaps; complete Help replacement is not claimed proven."
+    review_contract:
+      - "Absence of Help and its tools alone is not a migration defect and does not require restoring them."
+      - "Check correct EDT routing, sufficient facts and honest description of remaining limits."
+      - "The decision does not close other unfinished CRM/Kafka reconciliation work."
+  bsp-documentation-without-ssl-mcp:
+    status: accepted
+    decided_on: '2026-10-19'
+    decided_by: user
+    scope: 1c-ai-core skills, project profiles, installation and readiness checks
+    basis: User-confirmed exclusion; current contract in docs/INTEGRATIONS.md
+    excluded_source_servers:
+      - 1c-ssl-mcp
+    rationale:
+      - "KORA provides for removing legacy SSL-MCP and replacing it with a Git-based BSP capability knowledge base searched through OpenViking."
+    consequences:
+      - "1c-ssl-mcp is excluded from the core, including additional connections and fallback sources; do not restore old SSL routes, settings or readiness probes."
+      - "Installed library contracts use code-index; missing live facts use the assigned EDT."
+      - "The target BSP knowledge base and OpenViking search are implemented and accepted separately; excluding SSL-MCP alone does not prove replacement readiness. Explicitly selected profile mode defines knowledge gates, not SSL-MCP absence."
+    review_contract:
+      - "Absence of 1c-ssl-mcp and its tools is not a migration defect and does not require restoring or installing the server, including as fallback."
+      - "Check actual BSP routing, sufficient facts and separate target knowledge-base readiness; its gaps do not justify restoring SSL-MCP."
+      - "Together with platform-documentation-edt-only this records exclusion of both servers — 1c-docs-mcp and 1c-ssl-mcp — for future reviews."
+      - "The decision does not close other unfinished CRM/Kafka reconciliation work."
+  project-defined-supplier-maintenance:
+    status: accepted
+    decided_on: '2026-10-19'
+    decided_by: user
+    scope: 1c-ai-core change workflow and project instructions
+    consequences:
+      - "Determining origin, distribution boundaries and object ownership is a shared core mechanism for any project, not a CRM-specific feature."
+      - "Specific prefixes, supplier-distribution change rules, naming and custom-modification markers come from project AGENTS.md or its referenced instructions."
+      - "The supplier product includes bundled libraries and vendor-owned objects, including prefixed ones; a prefix does not make them owned by the current project."
+      - "Prefixes classify objects according to explicit project mappings; when ambiguous, verify only the missing fact."
+    review_contract:
+      - "Check shared ownership determination and application of project rules before changes and on the result."
+      - "Do not copy specific CRM prefixes or marker formats into the universal skill."
+      - "Absence of CRM-specific values in the core is not a defect in migrating shared maintenance behavior."
+  edt-model-gate-recovery:
+    status: accepted
+    decided_on: '2026-10-19'
+    decided_by: user
+    scope: 1c-ai-core code-change skill and EDT recovery workflow
+    basis: User requires transfer of the EDT-MCP recovery from the CRM source environment
+    consequences:
+      - "Recovery from the exact pre-write EDT model-gate refusal is a shared plugin capability for any project, not a CRM-specific migration exclusion."
+      - "Verify create_metadata/modify_metadata refusal against the installed contract; server version is not a recovery entry condition."
+      - "Retain targeted revalidation of only the established owner, target/guard/diagnostic checks and at most three recovery attempts per intended operation."
+      - "After three identical qualifying refusals, allow one clean of the exact project with real user agreement for the same scope and one final retry after confirmed rebuild/readiness."
+      - "Timeout, pending write jobs, mutation markers, different refusals or unknown outcomes do not authorize writer retries under this workflow."
+    review_contract:
+      - "Check shared recovery in the installed package without CRM aliases, paths or EDT project names."
+      - "Check exact entry conditions, counter persistence across turns and the ban on scope expansion and repeated clean."
+      - "Migrating instructions does not prove live workaround applicability to another EDT version or successful recovery."
+  selected-directory-and-instance-profile:
+    status: accepted
+    decided_on: '2026-10-19'
+    decided_by: user
+    scope: project profiles, MCP bindings, settings and runtime selection
+    consequences:
+      - "The profile loads from the selected repository; CRM/Kafka are not a fixed plugin connection registry."
+      - "Kafka adapter, unit and conversion may have their own repo-local profiles and EDT URLs."
+      - "Multiple instances of one CRM directory may use different EDT-MCP URLs."
+      - "Repositories store defaults or templates; instance overrides may reside in Codex or beside the repository."
+      - "Process environment variables take precedence over saved overrides and profile defaults."
+      - "Directory or instance-binding changes invalidate dependent facts without switching other sessions."
+  edt-capability-driven-efficiency:
+    status: accepted
+    decided_on: '2026-10-20'
+    decided_by: user
+    scope: EDT routing, session isolation, skills and MCP relay
+    consequences:
+      - "EDT capabilities come from the live contract, without binding the core to a repository, fixed server version or static tool catalogue."
+      - "Each independently selected configuration, profile or directory needs its own running EDT-MCP with an assigned endpoint; client sessions do not isolate shared EDT state."
+      - "The plugin supports parallel project bindings and does not reconnect other directories or instances when checking the selected connection."
+      - "Maximum MCP usefulness means choosing appropriate task capabilities, compact responses and evidence reuse, not invoking all operations or loading all guides."
+  v8std-capability-driven-efficiency:
+    status: accepted
+    decided_on: '2026-10-20'
+    decided_by: user
+    scope: normative retrieval, test knowledge, shared v8std connections and MCP relay
+    consequences:
+      - "v8std capabilities are selected from the live contract, without checkout, version or static tool-list binding."
+      - "One shared read-only v8std may serve multiple 1C projects concurrently; no server per directory is required."
+      - "Connections and normative applicability, sourceRef, selections and ledgers belong to their own project, target, phase and revision."
+      - "Compact responses, exact sections and API member cards, batch decoding and reuse of sufficient text save context without losing substantial conditions."
+      - "Unknown corpus revision limits reuse to the current task and connection; SDK version is not normative-text revision."
+

@@ -1,0 +1,11 @@
+interface:
+  display_name: "Диагностика BSL LS"
+  short_description: "Точечная диагностика BSL и семантическая навигация"
+  default_prompt: "Используй $bsl-ls-mcp для точечной диагностики BSL или семантической навигации в настроенном репозитории без изменения исходников."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "bsl-ls"
+      description: "Repository-local BSL Language Server MCP"
+      transport: "stdio"

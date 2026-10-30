@@ -27,6 +27,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer tools"
+    },
+    {
+      "name": "1c-ai-core-preview",
+      "source": {
+        "source": "local",
+        "path": "./plugins/1c-ai-core-preview"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer tools"
     }
   ]
 }

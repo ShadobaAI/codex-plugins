@@ -1,0 +1,35 @@
+{
+  "name": "1c-ai-core-preview",
+  "version": "0.4.3-preview.5",
+  "description": "Универсальное ИИ-ядро для разработки проектов 1С.",
+  "author": {
+    "name": "ShadobaAI"
+  },
+  "homepage": "https://github.com/ShadobaAI/edt-ai-core",
+  "repository": "https://github.com/ShadobaAI/edt-ai-core",
+  "keywords": [
+    "1c",
+    "edt",
+    "profiles",
+    "openviking"
+  ],
+  "requires_local_executor": true,
+  "onboardingSkill": "./skills/edt-ai-core/SKILL.md",
+  "interface": {
+    "displayName": "1C AI Core Preview",
+    "shortDescription": "Профильное ядро 1С",
+    "longDescription": "Универсальное ядро для 1С с импортом и экспортом профилей из репозиториев проектов.",
+    "developerName": "ShadobaAI",
+    "brandColor": "#202123",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.svg",
+    "category": "Developer tools",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": "Помоги настроить 1C AI Core пошагово: проверь текущий проект, задай только необходимые вопросы, подбери и проверь настройки."
+  },
+  "hooks": "./hooks/hooks.json",
+  "skills": "./skills/",
+  "mcpServers": "./mcp.json"
+}

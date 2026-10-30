@@ -1,0 +1,43 @@
+version: 0.1.0
+description: Descriptive runtime contract; scripts/runtime.mjs implements release selection.
+platform: auto
+release_selection:
+  default: latest_stable
+  allow_prerelease: user_opt_in_per_component
+  version: latest_or_explicit_tag
+managed:
+  code-index:
+    repository: Regsorm/code-index-mcp
+    artifacts:
+      win32-x64: bsl-indexer-windows-x64.zip
+      linux-x64: bsl-indexer-linux-x64.tar.gz
+      darwin-arm64: bsl-indexer-macos-arm64.tar.gz
+    integrity: github_asset_sha256_and_size
+    mode: project_daemon_and_read_only_stdio_client
+  bsl-ls:
+    repository: 1c-syntax/bsl-language-server
+    artifact: bsl-language-server-VERSION-exec.jar
+    integrity: github_asset_sha256_and_size
+    mode: client_owned_stdio
+    prerequisites:
+      java: required_by_selected_jar
+      node: 22+
+user_started:
+  - edt
+  - v8std
+bundled:
+  policy:
+    entrypoint: policy/read-only-mcp.mjs
+    protocol_version: 2.1.0
+    prerequisites:
+      node: 22+
+  vanessa-cli:
+    entrypoint: scripts/vanessa.mjs
+    mode: profile_bound_explicit_action
+    external_runtime: user_provided
+    wire_contract: vanessa-single-text-v1
+    prerequisites:
+      node: 22+
+    manager_platform: windows
+    process_identity: bundled_koffi_windows_api
+

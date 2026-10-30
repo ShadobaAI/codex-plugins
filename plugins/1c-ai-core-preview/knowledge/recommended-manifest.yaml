@@ -1,0 +1,15 @@
+schema_version: '0.1'
+kind: recommendations
+provider: openviking
+collections:
+  - id: bsp
+    description: Описание БСП и проверенных платформенных механизмов
+  - id: project
+    description: Описание проекта и его архитектурные границы
+  - id: documentation
+    description: Документация, SDD, ADR и контракты
+  - id: memory
+    description: Проверенная память команды и результаты ревью
+  - id: experience
+    description: Опубликованный переносимый опыт с provenance
+materials: []
