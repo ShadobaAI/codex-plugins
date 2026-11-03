@@ -45,7 +45,6 @@ import {
   legacy_project_state,
   record_project_owner,
   path_identity,
-  contained,
 } from "./project_paths.mjs";
 import {
   legacy_edt_matches,
@@ -57,9 +56,9 @@ import {
   check_instance_override,
 } from "./project_context.mjs";
 import { managed_components, component_enabled, grant_preparation, require_preparation, component_settings } from "./components.mjs";
-import { directory_context, edt_connection, edt_port_suggestion, edt_project_descriptors, index_repositories } from "./directory_context.mjs";
+import { directory_context, edt_connection, edt_port_suggestion, index_repositories, repository_projects } from "./directory_context.mjs";
 import { profile_history, profile_hidden, remember_profile, profile_summary } from "./profile_history.mjs";
-import { read_readiness, save_readiness } from "./setup_readiness.mjs";
+import { read_readiness, save_readiness, readiness_receipt_revision, readiness_fingerprint } from "./setup_readiness.mjs";
 import { knowledge_status } from "./knowledge.mjs";
 import { environment_compatibility, safe_error_message, sanitize_setup_result } from "./diagnostics.mjs";
 
@@ -115,12 +114,14 @@ function import_compatibility(profile, root) {
   if (!profile || !root) return { missingPaths: [], edtMappings: [] };
   const missingPaths = [...new Set(scoped_paths(profile))].filter(relative => !exists(inside(root, relative)));
   const repositories = profile.repositories.filter(repo => repo.edt_project);
-  const detected = repositories.length ? edt_project_descriptors(root) : [];
-  const edtMappings = repositories.map(repo => ({
-    repository: repo.id, project: repo.edt_project,
-    status: detected === null ? "unavailable" : detected.some(project =>
-      project.name === repo.edt_project && contained(inside(root, repo.path), project.directory)) ? "detected" : "not_detected",
-  }));
+  const edtMappings = repositories.map(repo => {
+    let status = "unavailable";
+    try {
+      const count = repository_projects(root, [repo])[0].projects.length;
+      status = count === 1 ? "detected" : count > 1 ? "ambiguous" : "not_detected";
+    } catch { /* Keep unavailable distinct from missing. */ }
+    return { repository: repo.id, project: repo.edt_project, status };
+  });
   return { missingPaths, edtMappings };
 }
 export const preparation_scope = (root) =>
@@ -674,15 +675,20 @@ export class SettingsBackend {
         try { const data = load(file); check_schema(data, "project-local.schema.json"); legacy.connections = data.connections || {}; }
         catch { legacy.connections = {}; }
       }
-      const directoryContext = directory_context(process.env.EDT_AI_PROJECT_ROOT || config.active_project);
+      const directoryContext = directory_context(process.env.EDT_AI_PROJECT_ROOT || config.active_project, { includeDisplayName: true });
       const profileDirectoryContext = config.active_project && directoryContext?.directory !== config.active_project
-        ? directory_context(config.active_project) : directoryContext;
+        ? directory_context(config.active_project, { includeDisplayName: true }) : directoryContext;
       if (profile.status === "loaded") {
         try { profile.indexRepositories = index_repositories(config.active_project, profile).map(repo => repo.id); }
         catch { profile.indexRepositories = []; }
       }
-      const readiness = await read_readiness(this.STATE, effective, profile);
+      let readiness = await read_readiness(this.STATE, effective, profile);
       const knowledge = profile.status === "loaded" ? knowledge_status(project_profile(config.active_project), effective) : null;
+      const summary = await profile_summary(this.STATE, effective, profile, readiness, knowledge);
+      if (readiness.state === "ready" && summary.components.some(item => item.id === "code-index" && item.status === "not_checked" && item.detail)) {
+        readiness = { ...readiness, state: "blocked", reason: "Не удалось подтвердить доступность процесса индекса.",
+          checks: readiness.checks.map(item => item.id === "code-index" ? { ...item, state: "not_checked", detail: "Не удалось подтвердить доступность процесса индекса. Повторите проверку готовности." } : item) };
+      }
       return {
         values: actual,
         ...(["invalid", "ambiguous"].includes(profile.status) ? { configurationError: true } : {}),
@@ -708,7 +714,7 @@ export class SettingsBackend {
         legacyState: legacy,
         profileHistory: profile_history(this.STATE, actual.projectRoot),
         profileHistoryHidden: profile_hidden(this.STATE, actual.projectRoot),
-        summary: await profile_summary(this.STATE, effective, profile, readiness, knowledge),
+        summary,
       };
     }
     if (["create", "load"].includes(action)) {
@@ -1056,6 +1062,9 @@ export class SettingsBackend {
       const config = this.effective(this.current()),
         [root, data] = runtime.project(config.active_project, config, component_enabled(config, "code-index"));
       const automatic = action === "refresh_readiness";
+      const initialRevision = automatic ? this.revision(config, profile_target(root)) : null;
+      const initialReceipt = automatic ? readiness_receipt_revision(this.STATE, root) : null;
+      const initialInputs = automatic ? readiness_fingerprint(this.STATE, config, data, undefined, { includeDaemonOwner: false }) : null;
       if (automatic) {
         if (request.scope !== preparation_scope(root)) throw new ConfigError("Проверка относится к другой папке или экземпляру.");
       } else {
@@ -1124,12 +1133,15 @@ export class SettingsBackend {
         ]);
         managed = checks; external = probes.external;
       } else {
-        managed = [];
-        for (const component of managed_components) managed.push(await check_component(component));
-        managed.push(await check_policy());
         atomic_write(reconnect_file(this.STATE, root), JSON.stringify({ id: randomUUID() }));
-        ({ external } = await probe_connections(config, root, data));
+        const [components, policyResult, probes] = await Promise.all([
+          (async () => { const items = []; for (const component of managed_components) items.push(await check_component(component)); return items; })(),
+          check_policy(), probe_connections(config, root, data),
+        ]);
+        managed = [...components, policyResult]; external = probes.external;
       }
+      if (automatic && (initialRevision !== this.revision(this.effective(this.current()), profile_target(root)) || initialReceipt !== readiness_receipt_revision(this.STATE, root) || initialInputs !== readiness_fingerprint(this.STATE, config, data, undefined, { includeDaemonOwner: false })))
+        return sanitize_setup_result({ managed, external, projectRoot: root, instance: instance_name(), superseded: true });
       const readiness = save_readiness(this.STATE, config, data, managed, external);
       return sanitize_setup_result({
         managed,
