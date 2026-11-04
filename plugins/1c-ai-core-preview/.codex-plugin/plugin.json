@@ -1,6 +1,6 @@
 {
   "name": "1c-ai-core-preview",
-  "version": "0.4.7-preview.6",
+  "version": "0.4.7-preview.8",
   "description": "Универсальное ИИ-ядро для разработки проектов 1С.",
   "author": {
     "name": "ShadobaAI"
@@ -14,7 +14,6 @@
     "openviking"
   ],
   "requires_local_executor": true,
-  "onboardingSkill": "./skills/edt-ai-core/SKILL.md",
   "interface": {
     "displayName": "1C AI Core Preview",
     "shortDescription": "Профильное ядро 1С",
