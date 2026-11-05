@@ -1,8 +1,8 @@
 # Source code
 
-1C AI Core 0.4.7-preview.16
+1C AI Core 0.4.7-preview.17
 
-https://github.com/ShadobaAI/edt-ai-core/tree/cac4238c5fb7870672e293b333ecef53177e0561
+https://github.com/ShadobaAI/edt-ai-core/tree/d3837a999876db323c3a2ec2ba186cf0917b18f0
 
 Copyright (c) 2026 ShadobaAI and contributors.
 
