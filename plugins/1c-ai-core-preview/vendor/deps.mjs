@@ -13045,8 +13045,8 @@ var require_contains = __commonJS({
     var codegen_1 = require_codegen();
     var util_1 = require_util();
     var error = {
-      message: ({ params: { min, max: max2 } }) => max2 === void 0 ? (0, codegen_1.str)`must contain at least ${min} valid item(s)` : (0, codegen_1.str)`must contain at least ${min} and no more than ${max2} valid item(s)`,
-      params: ({ params: { min, max: max2 } }) => max2 === void 0 ? (0, codegen_1._)`{minContains: ${min}}` : (0, codegen_1._)`{minContains: ${min}, maxContains: ${max2}}`
+      message: ({ params: { min, max } }) => max === void 0 ? (0, codegen_1.str)`must contain at least ${min} valid item(s)` : (0, codegen_1.str)`must contain at least ${min} and no more than ${max} valid item(s)`,
+      params: ({ params: { min, max } }) => max === void 0 ? (0, codegen_1._)`{minContains: ${min}}` : (0, codegen_1._)`{minContains: ${min}, maxContains: ${max}}`
     };
     var def = {
       keyword: "contains",
@@ -13058,39 +13058,39 @@ var require_contains = __commonJS({
       code(cxt) {
         const { gen, schema, parentSchema, data, it } = cxt;
         let min;
-        let max2;
+        let max;
         const { minContains, maxContains } = parentSchema;
         if (it.opts.next) {
           min = minContains === void 0 ? 1 : minContains;
-          max2 = maxContains;
+          max = maxContains;
         } else {
           min = 1;
         }
         const len = gen.const("len", (0, codegen_1._)`${data}.length`);
-        cxt.setParams({ min, max: max2 });
-        if (max2 === void 0 && min === 0) {
+        cxt.setParams({ min, max });
+        if (max === void 0 && min === 0) {
           (0, util_1.checkStrictMode)(it, `"minContains" == 0 without "maxContains": "contains" keyword ignored`);
           return;
         }
-        if (max2 !== void 0 && min > max2) {
+        if (max !== void 0 && min > max) {
           (0, util_1.checkStrictMode)(it, `"minContains" > "maxContains" is always invalid`);
           cxt.fail();
           return;
         }
         if ((0, util_1.alwaysValidSchema)(it, schema)) {
           let cond = (0, codegen_1._)`${len} >= ${min}`;
-          if (max2 !== void 0)
-            cond = (0, codegen_1._)`${cond} && ${len} <= ${max2}`;
+          if (max !== void 0)
+            cond = (0, codegen_1._)`${cond} && ${len} <= ${max}`;
           cxt.pass(cond);
           return;
         }
         it.items = true;
         const valid = gen.name("valid");
-        if (max2 === void 0 && min === 1) {
+        if (max === void 0 && min === 1) {
           validateItems(valid, () => gen.if(valid, () => gen.break()));
         } else if (min === 0) {
           gen.let(valid, true);
-          if (max2 !== void 0)
+          if (max !== void 0)
             gen.if((0, codegen_1._)`${data}.length > 0`, validateItemsWithCount);
         } else {
           gen.let(valid, false);
@@ -13115,10 +13115,10 @@ var require_contains = __commonJS({
         }
         function checkLimits(count) {
           gen.code((0, codegen_1._)`${count}++`);
-          if (max2 === void 0) {
+          if (max === void 0) {
             gen.if((0, codegen_1._)`${count} >= ${min}`, () => gen.assign(valid, true).break());
           } else {
-            gen.if((0, codegen_1._)`${count} > ${max2}`, () => gen.assign(valid, false).break());
+            gen.if((0, codegen_1._)`${count} > ${max}`, () => gen.assign(valid, false).break());
             if (min === 1)
               gen.assign(valid, true);
             else
@@ -15859,25 +15859,7 @@ for (i = 0; i < 32; ++i)
   fdt[i] = 5;
 var i;
 var flm = /* @__PURE__ */ hMap(flt, 9, 0);
-var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
 var fdm = /* @__PURE__ */ hMap(fdt, 5, 0);
-var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
-var max = function(a) {
-  var m = a[0];
-  for (var i = 1; i < a.length; ++i) {
-    if (a[i] > m)
-      m = a[i];
-  }
-  return m;
-};
-var bits = function(d, p, m) {
-  var o = p / 8 | 0;
-  return (d[o] | d[o + 1] << 8) >> (p & 7) & m;
-};
-var bits16 = function(d, p) {
-  var o = p / 8 | 0;
-  return (d[o] | d[o + 1] << 8 | d[o + 2] << 16) >> (p & 7);
-};
 var shft = function(p) {
   return (p + 7) / 8 | 0;
 };
@@ -15914,147 +15896,6 @@ var err = function(ind, msg, nt) {
   if (!nt)
     throw e;
   return e;
-};
-var inflt = function(dat, st, buf, dict) {
-  var sl = dat.length, dl = dict ? dict.length : 0;
-  if (!sl || st.f && !st.l)
-    return buf || new u8(0);
-  var noBuf = !buf;
-  var resize = noBuf || st.i != 2;
-  var noSt = st.i;
-  if (noBuf)
-    buf = new u8(sl * 3);
-  var cbuf = function(l2) {
-    var bl = buf.length;
-    if (l2 > bl) {
-      var nbuf = new u8(Math.max(bl * 2, l2));
-      nbuf.set(buf);
-      buf = nbuf;
-    }
-  };
-  var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
-  var tbts = sl * 8;
-  do {
-    if (!lm) {
-      final = bits(dat, pos, 1);
-      var type = bits(dat, pos + 1, 3);
-      pos += 3;
-      if (!type) {
-        var s = shft(pos) + 4, l = dat[s - 4] | dat[s - 3] << 8, t = s + l;
-        if (t > sl) {
-          if (noSt)
-            err(0);
-          break;
-        }
-        if (resize)
-          cbuf(bt + l);
-        buf.set(dat.subarray(s, t), bt);
-        st.b = bt += l, st.p = pos = t * 8, st.f = final;
-        continue;
-      } else if (type == 1)
-        lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
-      else if (type == 2) {
-        var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
-        var tl = hLit + bits(dat, pos + 5, 31) + 1;
-        pos += 14;
-        var ldt = new u8(tl);
-        var clt = new u8(19);
-        for (var i = 0; i < hcLen; ++i) {
-          clt[clim[i]] = bits(dat, pos + i * 3, 7);
-        }
-        pos += hcLen * 3;
-        var clb = max(clt), clbmsk = (1 << clb) - 1;
-        var clm = hMap(clt, clb, 1);
-        for (var i = 0; i < tl; ) {
-          var r = clm[bits(dat, pos, clbmsk)];
-          pos += r & 15;
-          var s = r >> 4;
-          if (s < 16) {
-            ldt[i++] = s;
-          } else {
-            var c = 0, n = 0;
-            if (s == 16)
-              n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
-            else if (s == 17)
-              n = 3 + bits(dat, pos, 7), pos += 3;
-            else if (s == 18)
-              n = 11 + bits(dat, pos, 127), pos += 7;
-            while (n--)
-              ldt[i++] = c;
-          }
-        }
-        var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
-        lbt = max(lt);
-        dbt = max(dt);
-        lm = hMap(lt, lbt, 1);
-        dm = hMap(dt, dbt, 1);
-      } else
-        err(1);
-      if (pos > tbts) {
-        if (noSt)
-          err(0);
-        break;
-      }
-    }
-    if (resize)
-      cbuf(bt + 131072);
-    var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
-    var lpos = pos;
-    for (; ; lpos = pos) {
-      var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
-      pos += c & 15;
-      if (pos > tbts) {
-        if (noSt)
-          err(0);
-        break;
-      }
-      if (!c)
-        err(2);
-      if (sym < 256)
-        buf[bt++] = sym;
-      else if (sym == 256) {
-        lpos = pos, lm = null;
-        break;
-      } else {
-        var add = sym - 254;
-        if (sym > 264) {
-          var i = sym - 257, b = fleb[i];
-          add = bits(dat, pos, (1 << b) - 1) + fl[i];
-          pos += b;
-        }
-        var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
-        if (!d)
-          err(3);
-        pos += d & 15;
-        var dt = fd[dsym];
-        if (dsym > 3) {
-          var b = fdeb[dsym];
-          dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
-        }
-        if (pos > tbts) {
-          if (noSt)
-            err(0);
-          break;
-        }
-        if (resize)
-          cbuf(bt + 131072);
-        var end = bt + add;
-        if (bt < dt) {
-          var shift = dl - dt, dend = Math.min(dt, end);
-          if (shift + bt < 0)
-            err(3);
-          for (; bt < dend; ++bt)
-            buf[bt] = dict[shift + bt];
-        }
-        for (; bt < end; ++bt)
-          buf[bt] = buf[bt - dt];
-      }
-    }
-    st.l = lm, st.p = lpos, st.b = bt, st.f = final;
-    if (lm)
-      final = 1, st.m = lbt, st.d = dm, st.n = dbt;
-  } while (!final);
-  return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
 };
 var wbits = function(d, p, v) {
   v <<= p & 7;
@@ -16403,24 +16244,12 @@ var mrg = function(a, b) {
     o[k] = b[k];
   return o;
 };
-var b2 = function(d, b) {
-  return d[b] | d[b + 1] << 8;
-};
-var b4 = function(d, b) {
-  return (d[b] | d[b + 1] << 8 | d[b + 2] << 16 | d[b + 3] << 24) >>> 0;
-};
-var b8 = function(d, b) {
-  return b4(d, b) + b4(d, b + 4) * 4294967296;
-};
 var wbytes = function(d, b, v) {
   for (; v; ++b)
     d[b] = v, v >>>= 8;
 };
 function deflateSync(data, opts) {
   return dopt(data, opts || {}, 0, 0);
-}
-function inflateSync(data, opts) {
-  return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
 }
 var fltn = function(d, p, t, o) {
   for (var k in d) {
@@ -16443,22 +16272,6 @@ try {
   tds = 1;
 } catch (e) {
 }
-var dutf8 = function(d) {
-  for (var r = "", i = 0; ; ) {
-    var c = d[i++];
-    var eb = (c > 127) + (c > 223) + (c > 239);
-    if (i + eb > d.length)
-      return { s: r, r: slc(d, i - 1) };
-    if (!eb)
-      r += String.fromCharCode(c);
-    else if (eb == 3) {
-      c = ((c & 15) << 18 | (d[i++] & 63) << 12 | (d[i++] & 63) << 6 | d[i++] & 63) - 65536, r += String.fromCharCode(55296 | c >> 10, 56320 | c & 1023);
-    } else if (eb & 1)
-      r += String.fromCharCode((c & 31) << 6 | d[i++] & 63);
-    else
-      r += String.fromCharCode((c & 15) << 12 | (d[i++] & 63) << 6 | d[i++] & 63);
-  }
-};
 function strToU8(str, latin1) {
   if (latin1) {
     var ar_1 = new u8(str.length);
@@ -16492,48 +16305,6 @@ function strToU8(str, latin1) {
   }
   return slc(ar, 0, ai);
 }
-function strFromU8(dat, latin1) {
-  if (latin1) {
-    var r = "";
-    for (var i = 0; i < dat.length; i += 16384)
-      r += String.fromCharCode.apply(null, dat.subarray(i, i + 16384));
-    return r;
-  } else if (td) {
-    return td.decode(dat);
-  } else {
-    var _a2 = dutf8(dat), s = _a2.s, r = _a2.r;
-    if (r.length)
-      err(8);
-    return s;
-  }
-}
-var slzh = function(d, b) {
-  return b + 30 + b2(d, b + 26) + b2(d, b + 28);
-};
-var zh = function(d, b, z) {
-  var fnl = b2(d, b + 28), efl = b2(d, b + 30), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl;
-  var _a2 = z64hs(d, es, efl, z, b4(d, b + 20), b4(d, b + 24), b4(d, b + 42)), sc = _a2[0], su = _a2[1], off = _a2[2];
-  return [b2(d, b + 10), sc, su, fn, es + efl + b2(d, b + 32), off];
-};
-var z64hs = function(d, b, l, z, sc, su, off) {
-  var nsc = sc == 4294967295, nsu = su == 4294967295, noff = off == 4294967295, e = b + l;
-  var nf = nsc + nsu + noff;
-  if (z && nf) {
-    for (; b + 4 < e; b += 4 + b2(d, b + 2)) {
-      if (b2(d, b) == 1) {
-        return [
-          nsc ? b8(d, b + 4 + 8 * nsu) : sc,
-          nsu ? b8(d, b + 4) : su,
-          noff ? b8(d, b + 4 + 8 * (nsu + nsc)) : off,
-          1
-        ];
-      }
-    }
-    if (z < 2)
-      err(13);
-  }
-  return [sc, su, off, 0];
-};
 var exfl = function(ex) {
   var le = 0;
   if (ex) {
@@ -16635,47 +16406,6 @@ function zipSync(data, opts) {
   wzf(out, o, files.length, cdl, oe);
   return out;
 }
-function unzipSync(data, opts) {
-  var files = {};
-  var e = data.length - 22;
-  for (; b4(data, e) != 101010256; --e) {
-    if (!e || data.length - e > 65558)
-      err(13);
-  }
-  ;
-  var c = b2(data, e + 8);
-  if (!c)
-    return {};
-  var o = b4(data, e + 16);
-  var z = b4(data, e - 20) == 117853008;
-  if (z) {
-    var ze = b4(data, e - 12);
-    z = b4(data, ze) == 101075792;
-    if (z) {
-      c = b4(data, ze + 32);
-      o = b4(data, ze + 48);
-    }
-  }
-  var fltr = opts && opts.filter;
-  for (var i = 0; i < c; ++i) {
-    var _a2 = zh(data, o, z), c_2 = _a2[0], sc = _a2[1], su = _a2[2], fn = _a2[3], no = _a2[4], off = _a2[5], b = slzh(data, off);
-    o = no;
-    if (!fltr || fltr({
-      name: fn,
-      size: sc,
-      originalSize: su,
-      compression: c_2
-    })) {
-      if (!c_2)
-        files[fn] = slc(data, b, b + sc);
-      else if (c_2 == 8)
-        files[fn] = inflateSync(data.subarray(b, b + sc), { out: new u8(su) });
-      else
-        err(14, "unknown compression type " + c_2);
-    }
-  }
-  return files;
-}
 var export_Ajv = import_ajv.default;
 var export_Ajv2019 = import__2.default;
 var export_Ajv2020 = import__.default;
@@ -16688,6 +16418,5 @@ export {
   json_schema_draft_06_default as draft6MetaSchema,
   export_parseDocument as parseDocument,
   export_stringify as stringify,
-  unzipSync,
   zipSync
 };

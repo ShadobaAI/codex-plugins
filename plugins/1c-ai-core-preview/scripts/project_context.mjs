@@ -23,7 +23,7 @@ export { locate_project };
 function check_external_override(data) {
   check_schema(data, "project-local.schema.json");
   if (Object.keys(data).some(key => !["schema_version", "connections", "components"].includes(key)))
-    throw new ConfigError("External overrides support only connections and components");
+    throw new ConfigError("Внешний файл переопределений поддерживает только connections и components");
 }
 export function local_overrides(root) {
   const file = inside(root, ".ai/project.local.yaml");
@@ -38,7 +38,7 @@ export function external_override_files() {
     const file = resolve(process.env.EDT_AI_CONNECTIONS_FILE);
     if (!is_file(file))
       throw new ConfigError(
-        "EDT_AI_CONNECTIONS_FILE must identify an existing override file",
+        "EDT_AI_CONNECTIONS_FILE должен указывать на существующий файл переопределений",
       );
     paths.push(file);
   }
@@ -55,7 +55,7 @@ export function assert_settings_paths(config, root, data, state = null, settings
   for (const file of files) {
     const nominal = path.resolve(file), actual = resolve(file);
     if (protectedPaths.some(source => contained(source, actual) && !contained(source, nominal)))
-      throw new ConfigError("Settings path redirects into protected project source: " + nominal);
+      throw new ConfigError("Путь настроек перенаправляется в защищённые исходники проекта: " + nominal);
   }
 }
 export function resolved_settings(
@@ -69,11 +69,17 @@ export function resolved_settings(
   assert_settings_paths(config, root, data, state);
   let overrides = { connections: data?.connections || {}, components: data?.components || {} };
   const fieldSources = {
+    connections: {},
+    connectionVariables: {},
     openviking: Object.fromEntries(Object.keys(config.mcp.optional.openviking).map(key => [key, "settings"])),
     components: Object.fromEntries(Object.entries(config.mcp.managed).map(([name, item]) =>
       [name, Object.fromEntries(Object.keys(item).map(key => [key, "settings"]))])),
   };
   const record_sources = (connections, source, components = {}) => {
+    for (const [name, item] of Object.entries(connections || {})) {
+      fieldSources.connections[name] ||= {};
+      for (const key of Object.keys(item)) fieldSources.connections[name][key] = source;
+    }
     for (const key of Object.keys(connections?.openviking || {})) fieldSources.openviking[key] = source;
     for (const [name, item] of Object.entries(components || {})) {
       fieldSources.components[name] ||= {};
@@ -136,6 +142,7 @@ export function resolved_settings(
   }
   for (const [name, entry] of Object.entries(overlay)) {
     if (entry.url) name === "openviking" ? validate_openviking_url(entry.url) : validate_url(entry.url, name);
+    if (Object.hasOwn(entry, "url_env")) fieldSources.connectionVariables[name] = entry.url_env;
     delete entry.url_env; // Resolution metadata is not part of the transport contract.
   }
   const openviking = overlay.openviking;
