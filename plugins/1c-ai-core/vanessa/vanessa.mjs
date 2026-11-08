@@ -2,8 +2,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProfile, readJson, checkFiles, configSnippet, interactiveParameters, digest, fail } from "./profile.mjs";
 import { session, listTools, callTool, redact } from "./mcp.mjs";
-import { withProfileLock, checkOwner, managerAlive, start } from "./runtime.mjs";
-import { inspectSession, connectSession, setupSession } from "./readiness.mjs";
+import { withProfileLock, checkOwner, managerAlive, start, verifyOwnedManager, ownedManagerTransport } from "./runtime.mjs";
+import { inspectSession, connectSession, setupSession, runtimeContract, sameInfobase } from "./readiness.mjs";
+import { windows_testclient_binding } from "../scripts/windows_process.mjs";
 import { ownRecording, recordOwnership, invalidateObservedIdle } from "./recording.mjs";
 import { runFeature } from "./run.mjs";
 import { awaitEditorTransition } from "./transition.mjs";
@@ -12,23 +13,23 @@ export { loadProfile } from "./profile.mjs";
 
 export const discoveryTools = new Set(["get_environment_data", "get_vanessa_automation_state", "get_editor_state", "get_test_results", "get_window_list_os", "get_extension_list", "get_process_list_os"]);
 const isDiscovery = (name, args) => discoveryTools.has(name) || (name === "manage_test_client_profiles" && args.action === "get_list");
-export async function probeReadiness(profile, client, tools) {
-  return inspectSession(profile, client, tools);
+export async function probeReadiness(profile, client, tools, contract = runtimeContract) {
+  return inspectSession(profile, client, tools, contract);
 }
 
-export async function doctor(profile) {
+export async function doctor(profile, contract = runtimeContract) {
   checkFiles(profile);
   return withProfileLock(profile, async () => {
     checkOwner(profile);
-    const result = await session(profile, async client => probeReadiness(profile, client, await listTools(client)));
+    const result = await session(profile, async client => probeReadiness(profile, client, await listTools(client), contract));
     if (result.status === "ready" && result.recording === false) invalidateObservedIdle(profile, result.runtimeVersion);
     return redact(result);
   });
 }
 
-export async function main(argv) {
+export async function main(argv, { contract = runtimeContract, managerSystem } = {}) {
   const command = argv.shift();
-  if (!command || command === "help" || command === "--help") return { usage: "node vanessa.mjs <configure|start|setup|connect|doctor|list|call|run> --profile <file> [--client <name>] [--tool <actual-name> --arguments-file <json>] [--feature <file> --scenario <exact-name> --editor-transition]", note: "configure prints an MCP TOML snippet; no credentials or upstream checkout are used" };
+  if (!command || command === "help" || command === "--help") return { usage: "node vanessa.mjs <configure|start|setup|connect|doctor|list|call|run> --profile <file> [--client <name>] [--tool <actual-name> --arguments-file <json>] [--feature <file> --scenario <exact-name> --editor-transition]", note: "configure prints an MCP TOML snippet; the local profile contains credentials" };
   if (!["configure", "start", "setup", "connect", "doctor", "list", "call", "run"].includes(command)) fail("Неизвестная команда");
   const opts = {};
   while (argv.length) {
@@ -49,20 +50,34 @@ export async function main(argv) {
   const profile = loadProfile(opts["--profile"], opts["--expected-profile-sha256"], opts["--client"]);
   if (command === "configure") return { status: "configuration_only", serverName: profile.mcp.serverName, snippet: configSnippet(profile), interactiveParameters: interactiveParameters(profile), readiness: "unverified" };
   if (command === "start") return start(profile);
-  if (command === "doctor") return doctor(profile);
+  if (command === "doctor") return doctor(profile, contract);
   return withProfileLock(profile, async () => {
-    const manager = checkOwner(profile);
-    let managerToken = null, callStarted = false, discovery = false, recordingAction, readyVersion, workflowProgress;
+    const manager = checkOwner(profile, { required: command === "setup", system: managerSystem });
+    const transportFetch = command === "setup" ? ownedManagerTransport(profile, manager, { system: managerSystem }) : undefined;
+    let managerToken = null, callStarted = false, discovery = false, recordingAction, readyVersion, workflowProgress, pendingMutation;
     const deadline = Date.now() + profile.limits.timeoutMs;
     try {
       return await session(profile, async client => {
         const tools = await listTools(client);
         if (command === "list") return { status: "available", tools };
-        if (command === "connect") return connectSession(profile, client, tools);
-        if (command === "setup") return setupSession(profile, client, tools);
+        const onMutation = (tool, pending) => { pendingMutation = pending ? tool : null; };
+        if (command === "connect") return connectSession(profile, client, tools, contract, { onMutation });
+        if (command === "setup") {
+          // A server may close each HTTP connection. Obtain reciprocal MCP and
+          // TestClient evidence while the guarded read-only request is connected.
+          const setupContract = { ...contract, processBinding: (...args) => transportFetch.checkDuringRequest(() => {
+            const binding = (contract.processBinding ?? windows_testclient_binding)(...args);
+            return binding?.managerPid === manager.pid && binding.managerCreated === manager.created ? binding : null;
+          }, async () => {
+            const environment = contract.environment(await callTool(client, tools, "get_environment_data", {}));
+            return Boolean(environment && sameInfobase(profile.manager.infobase, environment.managerInfobase));
+          }) };
+          return setupSession(profile, client, tools, setupContract, { onMutation,
+            verifyManager: () => verifyOwnedManager(profile, manager, { system: managerSystem }) });
+        }
         if (command === "run") return runFeature(profile, client, tools, { feature: opts["--feature"], scenario: opts["--scenario"],
           onProgress: progress => { workflowProgress = progress; },
-          ...(opts["--editor-transition"] ? { beforeOpen: () => awaitEditorTransition({ managerPid: manager?.pid, timeoutMs: Math.min(60000, deadline - Date.now() - 1000) }) } : {}) });
+          ...(opts["--editor-transition"] ? { beforeOpen: () => awaitEditorTransition({ managerPid: manager?.pid, timeoutMs: Math.min(60000, deadline - Date.now() - 1000) }) } : {}) }, contract);
         if (!opts["--tool"]) fail("Требуется --tool");
         const name = opts["--tool"], args = opts["--arguments-file"] ? readJson(opts["--arguments-file"], 1024 * 1024, opts["--expected-arguments-sha256"]) : {};
         if (name === "run_scenario" && !Object.hasOwn(args, "mode")) fail("Для run_scenario нужен явный mode; all не используется в командной строке по умолчанию");
@@ -70,7 +85,7 @@ export async function main(argv) {
         if (!discovery) {
           if (manager?.pid && manager.created && managerAlive(profile, manager)) managerToken = digest(JSON.stringify([manager.pid, manager.created, manager.fingerprint]));
           let ownership = ownRecording(profile, managerToken);
-          const readiness = await inspectSession(profile, client, tools, undefined, { ownRecording: Boolean(ownership) });
+          const readiness = await inspectSession(profile, client, tools, contract, { ownRecording: Boolean(ownership) });
           if (readiness.status !== "ready") fail(`Готовность интерфейса: ${readiness.status}: ${readiness.reason}; зависимый вызов заблокирован`);
           readyVersion = readiness.runtimeVersion;
           if (ownership && readiness.recording === false) { invalidateObservedIdle(profile, readyVersion); ownership = null; }
@@ -87,8 +102,14 @@ export async function main(argv) {
           if (recordingAction === "start") recordOwnership(profile, "starting", readyVersion, managerToken);
         } });
         if (recordingAction) recordOwnership(profile, recordingAction === "start" ? "active" : "idle", readyVersion, managerToken);
+        if (name === "manage_test_client_profiles" && args.action === "get_list") {
+          const profiles = contract.profiles(result);
+          if (!Array.isArray(profiles)) return { status: "unverified", reason: "client_profiles_response_contract_unverified", tool: name };
+          return { status: "completed", tool: name, result: { profiles: profiles.map(({ name, synonym, infobase, connected, computerName, clientType, pid }) =>
+            ({ name, synonym, infobase, connected, computerName, clientType, pid })) } };
+        }
         return { status: "completed", tool: name, result };
-      });
+      }, { transportFetch });
     } catch (error) {
       if (workflowProgress) {
         // The bounded HTTP session can reject before runFeature's own catch.
@@ -110,6 +131,12 @@ export async function main(argv) {
         throw failure;
       }
       if (error.code === "tool_error") throw error;
+      if (pendingMutation) {
+        const uncertain = new Error("Исход изменения профиля или подключения TestClient неизвестен; перед повтором проверьте фактическое состояние");
+        uncertain.code = "mutation_indeterminate";
+        uncertain.detail = { classification: "transport_or_protocol", outcome: "indeterminate", tool: pendingMutation, nextAction: uncertain.message };
+        throw uncertain;
+      }
       if (callStarted && !discovery) {
         if (recordingAction) recordOwnership(profile, "indeterminate", readyVersion, managerToken);
         const uncertain = new Error("Исход операции интерфейса неизвестен; перед повтором проверьте фактическое состояние; автоматического повтора нет");
